@@ -185,34 +185,480 @@ html.high-contrast {
 }
 
 html.high-contrast.dark {
-  /* 暗色高对比度：黑底（#000000）+ 亮黄字（#FFFF00）+ 亮蓝边框（#00FFFF 2px） */
+  /* 暗色高对比度：黑底（#000000）+ 亮黄字（#FFFF00）+ 黄边框（#FFFF00 2px） */
   --fluent-bg: #000000 !important;
   --fluent-sidebar-bg: #000000 !important;
   --fluent-card-bg: #000000 !important;
-  --fluent-card-border: #00ffff !important;
+  --fluent-card-border: #ffff00 !important;
   --fluent-text-primary: #ffff00 !important;
   --fluent-text-secondary: #ffff00 !important;
-  --fluent-accent: #00ffff !important;
-  --fluent-accent-hover: #00ffff !important;
-  --fluent-accent-active: #00ffff !important;
+  --fluent-accent: #ffff00 !important;
+  --fluent-accent-hover: #ffff00 !important;
+  --fluent-accent-active: #ffff00 !important;
   --fluent-subtle-fill: #000000 !important;
   --fluent-subtle-fill-hover: #333333 !important;
-  --fluent-control-border: #00ffff !important;
+  --fluent-control-border: #ffff00 !important;
   
-  --el-color-primary: #00ffff !important;
-  --el-border-color: #00ffff !important;
-  --el-border-color-light: #00ffff !important;
+  --el-color-primary: #ffff00 !important;
+  --el-border-color: #ffff00 !important;
+  --el-border-color-light: #ffff00 !important;
   --el-border-width: 2px !important;
-  --el-border-color-lighter: #00ffff !important;
+  --el-border-color-lighter: #ffff00 !important;
 }
 
-/* 高对比度模式下按钮、边框和交互元素的通用粗边框规则 */
-html.high-contrast .el-button,
-html.high-contrast .el-card,
-html.high-contrast .el-dialog,
+/* ------------------ 1. 所有按钮（el-button） ------------------ */
+
+/* 通用按钮基础样式 */
+html.high-contrast .el-button {
+  border: 2px solid var(--fluent-control-border) !important;
+  border-width: 2px !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  box-sizing: border-box !important;
+  font-weight: bold !important;
+  transition: all 0.15s ease-in-out !important;
+}
+
+/* 浅色主要按钮：白底 + 黑字 + 2px黑边框 */
+html.high-contrast .el-button--primary {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+/* 浅色主要按钮 hover: 黑底白字反转 */
+html.high-contrast .el-button--primary:hover,
+html.high-contrast .el-button--primary:focus {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #000000 !important;
+}
+
+/* 暗色主要按钮：黑底 + 黄字 + 2px黄边框 */
+html.high-contrast.dark .el-button--primary {
+  background-color: #000000 !important;
+  color: #ffff00 !important;
+  border-color: #ffff00 !important;
+}
+
+/* 暗色主要按钮 hover: 黄底黑字反转 */
+html.high-contrast.dark .el-button--primary:hover,
+html.high-contrast.dark .el-button--primary:focus {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border-color: #ffff00 !important;
+}
+
+/* 浅色默认按钮 */
+html.high-contrast .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--warning):not(.el-button--success):not(.is-link) {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+/* 浅色默认按钮 - hover/选中/激活状态（亮度差 >= 60%，所以为黑底白字） */
+html.high-contrast .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--warning):not(.el-button--success):not(.is-link):hover,
+html.high-contrast .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--warning):not(.el-button--success):not(.is-link):active,
+html.high-contrast .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--warning):not(.el-button--success):not(.is-link).is-active {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #000000 !important;
+}
+
+/* 暗色默认按钮 */
+html.high-contrast.dark .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--warning):not(.el-button--success):not(.is-link) {
+  background-color: #000000 !important;
+  color: #ffff00 !important;
+  border-color: #ffff00 !important;
+}
+
+/* 暗色默认按钮 - hover/选中/激活状态（亮度差 >= 60%，所以为黄底黑字） */
+html.high-contrast.dark .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--warning):not(.el-button--success):not(.is-link):hover,
+html.high-contrast.dark .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--warning):not(.el-button--success):not(.is-link):active,
+html.high-contrast.dark .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--warning):not(.el-button--success):not(.is-link).is-active {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border-color: #ffff00 !important;
+}
+
+/* 危险/警告按钮：保留红色/警告色，但边框加粗到 2px */
+html.high-contrast .el-button--danger {
+  border: 2px solid #c42b1c !important;
+  background-color: #ffffff !important;
+  color: #c42b1c !important;
+}
+html.high-contrast .el-button--danger:hover {
+  background-color: #c42b1c !important;
+  color: #ffffff !important;
+}
+html.high-contrast.dark .el-button--danger {
+  border: 2px solid #ff4d4f !important;
+  background-color: #000000 !important;
+  color: #ff4d4f !important;
+}
+html.high-contrast.dark .el-button--danger:hover {
+  background-color: #ff4d4f !important;
+  color: #000000 !important;
+}
+
+html.high-contrast .el-button--warning {
+  border: 2px solid #e6a23c !important;
+  background-color: #ffffff !important;
+  color: #e6a23c !important;
+}
+html.high-contrast .el-button--warning:hover {
+  background-color: #e6a23c !important;
+  color: #ffffff !important;
+}
+html.high-contrast.dark .el-button--warning {
+  border: 2px solid #e6a23c !important;
+  background-color: #000000 !important;
+  color: #e6a23c !important;
+}
+html.high-contrast.dark .el-button--warning:hover {
+  background-color: #e6a23c !important;
+  color: #000000 !important;
+}
+
+
+/* ------------------ 2. 按钮组（el-radio-button-group / el-button-group） ------------------ */
+
+/* 强制 radio-group 和 button-group 子项有间隙，使得有 2px 独立边框 */
+html.high-contrast .el-radio-group,
+html.high-contrast .el-button-group {
+  display: inline-flex !important;
+  gap: 8px !important;
+}
+
+/* 独立按钮样式覆盖，取消共用边框和 box-shadow */
+html.high-contrast .el-radio-button {
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast .el-radio-button__inner {
+  border: 2px solid var(--fluent-control-border) !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  background-color: var(--fluent-bg) !important;
+  color: var(--fluent-text-primary) !important;
+  transition: all 0.15s ease-in-out !important;
+  font-weight: bold !important;
+}
+
+/* 浅色未选中：白底 + 2px黑边框 */
+html.high-contrast .el-radio-button:not(.is-active) .el-radio-button__inner {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border-color: #000000 !important;
+}
+html.high-contrast .el-radio-button:not(.is-active) .el-radio-button__inner:hover {
+  background-color: #e0e0e0 !important;
+}
+
+/* 暗色未选中：黑底 + 2px黄边框 */
+html.high-contrast.dark .el-radio-button:not(.is-active) .el-radio-button__inner {
+  background-color: #000000 !important;
+  color: #ffff00 !important;
+  border-color: #ffff00 !important;
+}
+html.high-contrast.dark .el-radio-button:not(.is-active) .el-radio-button__inner:hover {
+  background-color: #333333 !important;
+}
+
+/* 浅色选中项：黑底填充 + 2px黑边框 + 内部加一个小圆点作为额外指示器 */
+html.high-contrast .el-radio-button.is-active .el-radio-button__inner {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #000000 !important;
+}
+
+html.high-contrast .el-radio-button.is-active .el-radio-button__inner::before {
+  content: "● " !important;
+  color: #ffffff !important;
+  margin-right: 4px !important;
+  display: inline-block !important;
+}
+
+/* 暗色选中项：黄底填充 + 2px黄边框 + 内部加一个小圆点作为额外指示器 */
+html.high-contrast.dark .el-radio-button.is-active .el-radio-button__inner {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border-color: #ffff00 !important;
+}
+
+html.high-contrast.dark .el-radio-button.is-active .el-radio-button__inner::before {
+  content: "● " !important;
+  color: #000000 !important;
+  margin-right: 4px !important;
+  display: inline-block !important;
+}
+
+/* 按钮组内聚焦状态（键盘Tab）：增加虚线外轮廓 */
+html.high-contrast .el-radio-button__orig-radio:focus-visible + .el-radio-button__inner,
+html.high-contrast .el-radio-button:focus-within .el-radio-button__inner {
+  outline: 2px dashed #000000 !important;
+  outline-offset: 2px !important;
+}
+html.high-contrast.dark .el-radio-button__orig-radio:focus-visible + .el-radio-button__inner,
+html.high-contrast.dark .el-radio-button:focus-within .el-radio-button__inner {
+  outline: 2px dashed #ffff00 !important;
+  outline-offset: 2px !important;
+}
+
+
+/* ------------------ 3. 开关（el-switch） ------------------ */
+
+html.high-contrast .el-switch {
+  opacity: 1 !important;
+}
+
+/* 轨道（el-switch__core）通用 */
+html.high-contrast .el-switch__core {
+  border-width: 2px !important;
+  box-sizing: border-box !important;
+  height: 24px !important;
+  min-width: 44px !important;
+  border-radius: 12px !important;
+}
+
+/* 浅色关闭状态：白底 + 2px黑边框 */
+html.high-contrast .el-switch:not(.is-checked) .el-switch__core {
+  background-color: #ffffff !important;
+  border-color: #000000 !important;
+}
+/* 浅色关闭状态滑块：黑色，稍小 */
+html.high-contrast .el-switch:not(.is-checked) .el-switch__core .el-switch__action {
+  background-color: #000000 !important;
+  width: 14px !important;
+  height: 14px !important;
+  left: 3px !important;
+  top: 3px !important;
+}
+
+/* 浅色开启状态：黑底，实心填充 */
+html.high-contrast .el-switch.is-checked .el-switch__core {
+  background-color: #000000 !important;
+  border-color: #000000 !important;
+}
+/* 浅色开启状态滑块：白色，略大且位置在右侧 */
+html.high-contrast .el-switch.is-checked .el-switch__core .el-switch__action {
+  background-color: #ffffff !important;
+  width: 18px !important;
+  height: 18px !important;
+  left: 100% !important;
+  margin-left: -21px !important;
+  top: 1px !important;
+}
+
+/* 暗色关闭状态：黑底 + 2px白边框 */
+html.high-contrast.dark .el-switch:not(.is-checked) .el-switch__core {
+  background-color: #000000 !important;
+  border-color: #ffffff !important;
+}
+/* 暗色关闭状态滑块：白色，稍小 */
+html.high-contrast.dark .el-switch:not(.is-checked) .el-switch__core .el-switch__action {
+  background-color: #ffffff !important;
+  width: 14px !important;
+  height: 14px !important;
+  left: 3px !important;
+  top: 3px !important;
+}
+
+/* 暗色开启状态：黄底，实心填充 */
+html.high-contrast.dark .el-switch.is-checked .el-switch__core {
+  background-color: #ffff00 !important;
+  border-color: #ffff00 !important;
+}
+/* 暗色开启状态滑块：黑色，略大且位置在右侧 */
+html.high-contrast.dark .el-switch.is-checked .el-switch__core .el-switch__action {
+  background-color: #000000 !important;
+  width: 18px !important;
+  height: 18px !important;
+  left: 100% !important;
+  margin-left: -21px !important;
+  top: 1px !important;
+}
+
+
+/* ------------------ 4. 输入框与选择器（el-input / el-select / el-textarea） ------------------ */
+
+/* 常态：2px实线边框（#000000 浅色 / #FFFF00 暗色） */
 html.high-contrast .el-input__wrapper,
 html.high-contrast .el-textarea__inner,
-html.high-contrast .el-select__wrapper,
+html.high-contrast .el-select__wrapper {
+  border: 2px solid #000000 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  box-sizing: border-box !important;
+}
+
+html.high-contrast.dark .el-input__wrapper,
+html.high-contrast.dark .el-textarea__inner,
+html.high-contrast.dark .el-select__wrapper {
+  border: 2px solid #ffff00 !important;
+  background-color: #000000 !important;
+  color: #ffff00 !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  box-sizing: border-box !important;
+}
+
+/* 内部输入框字体颜色统一 */
+html.high-contrast .el-input__inner {
+  color: #000000 !important;
+}
+html.high-contrast.dark .el-input__inner {
+  color: #ffff00 !important;
+}
+
+/* 聚焦（focus）：增加外发光轮廓（outline: 3px solid） */
+html.high-contrast .el-input__wrapper.is-focus,
+html.high-contrast .el-textarea__inner:focus,
+html.high-contrast .el-select__wrapper.is-focus {
+  outline: 3px solid #000000 !important;
+  outline-offset: 1px !important;
+}
+
+html.high-contrast.dark .el-input__wrapper.is-focus,
+html.high-contrast.dark .el-textarea__inner:focus,
+html.high-contrast.dark .el-select__wrapper.is-focus {
+  outline: 3px solid #ffff00 !important;
+  outline-offset: 1px !important;
+}
+
+/* 禁用状态：背景加斜线纹理（repeating-linear-gradient），不能只靠颜色变淡 */
+html.high-contrast .el-input.is-disabled .el-input__wrapper,
+html.high-contrast .el-textarea.is-disabled .el-textarea__inner,
+html.high-contrast .el-select.is-disabled .el-select__wrapper {
+  background-image: repeating-linear-gradient(45deg, #ffffff, #ffffff 10px, #e0e0e0 10px, #e0e0e0 20px) !important;
+  background-color: #e0e0e0 !important;
+  color: #555555 !important;
+  border-color: #555555 !important;
+  cursor: not-allowed !important;
+}
+html.high-contrast .el-input.is-disabled .el-input__inner {
+  color: #555555 !important;
+  cursor: not-allowed !important;
+}
+
+html.high-contrast.dark .el-input.is-disabled .el-input__wrapper,
+html.high-contrast.dark .el-textarea.is-disabled .el-textarea__inner,
+html.high-contrast.dark .el-select.is-disabled .el-select__wrapper {
+  background-image: repeating-linear-gradient(45deg, #000000, #000000 10px, #333333 10px, #333333 20px) !important;
+  background-color: #222222 !important;
+  color: #888888 !important;
+  border-color: #888888 !important;
+  cursor: not-allowed !important;
+}
+html.high-contrast.dark .el-input.is-disabled .el-input__inner {
+  color: #888888 !important;
+  cursor: not-allowed !important;
+}
+
+/* 下拉选择框的展开指示和下拉选项 hover/selected 状态 */
+html.high-contrast .el-select .el-select__caret {
+  color: #000000 !important;
+  font-weight: bold !important;
+  font-size: 16px !important;
+}
+html.high-contrast.dark .el-select .el-select__caret {
+  color: #ffff00 !important;
+  font-weight: bold !important;
+  font-size: 16px !important;
+}
+
+/* 下拉框浮层整体样式 */
+.el-select__popper.el-popper {
+  border: 2px solid #000000 !important;
+}
+.dark .el-select__popper.el-popper {
+  border: 2px solid #ffff00 !important;
+}
+
+html.high-contrast .el-select-dropdown__item {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  font-weight: bold !important;
+}
+
+/* hover/active 选项反转 */
+html.high-contrast .el-select-dropdown__item:hover,
+html.high-contrast .el-select-dropdown__item.hover {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* selected 选项 */
+html.high-contrast .el-select-dropdown__item.selected {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 2px dashed #ffffff !important;
+}
+
+html.high-contrast.dark .el-select-dropdown__item {
+  color: #ffff00 !important;
+  background-color: #000000 !important;
+  font-weight: bold !important;
+}
+
+/* hover/active 选项反转 */
+html.high-contrast.dark .el-select-dropdown__item:hover,
+html.high-contrast.dark .el-select-dropdown__item.hover {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+}
+
+/* selected 选项 */
+html.high-contrast.dark .el-select-dropdown__item.selected {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border: 2px dashed #000000 !important;
+}
+
+
+/* ------------------ 5. 全局辅助 ------------------ */
+
+/* 所有可聚焦元素在键盘 Tab 切换时的聚焦轮廓 */
+html.high-contrast *:focus-visible {
+  outline: 2px dashed #000000 !important;
+  outline-offset: 2px !important;
+}
+html.high-contrast.dark *:focus-visible {
+  outline: 2px dashed #ffff00 !important;
+  outline-offset: 2px !important;
+}
+
+/* 针对主要组件聚焦增强 */
+html.high-contrast .el-button:focus-visible,
+html.high-contrast .el-button.is-focus,
+html.high-contrast .el-radio:focus-visible,
+html.high-contrast .el-radio-button:focus-visible,
+html.high-contrast .el-switch:focus-visible,
+html.high-contrast .el-checkbox:focus-visible,
+html.high-contrast .el-input__inner:focus-visible,
+html.high-contrast .el-textarea__inner:focus-visible {
+  outline: 2px dashed #000000 !important;
+  outline-offset: 2px !important;
+}
+
+html.high-contrast.dark .el-button:focus-visible,
+html.high-contrast.dark .el-button.is-focus,
+html.high-contrast.dark .el-radio:focus-visible,
+html.high-contrast.dark .el-radio-button:focus-visible,
+html.high-contrast.dark .el-switch:focus-visible,
+html.high-contrast.dark .el-checkbox:focus-visible,
+html.high-contrast.dark .el-input__inner:focus-visible,
+html.high-contrast.dark .el-textarea__inner:focus-visible {
+  outline: 2px dashed #ffff00 !important;
+  outline-offset: 2px !important;
+}
+
+/* 其他辅助卡片等的高对比度样式保留并增强 */
+html.high-contrast .el-card,
+html.high-contrast .el-dialog,
 html.high-contrast .fluent-sidebar,
 html.high-contrast .fluent-sidebar-item {
   border: 2px solid var(--fluent-control-border) !important;
@@ -220,15 +666,6 @@ html.high-contrast .fluent-sidebar-item {
   border-radius: 4px !important;
   color: var(--fluent-text-primary) !important;
   background-color: var(--fluent-bg) !important;
-}
-
-html.high-contrast .el-button--primary {
-  background-color: var(--fluent-accent) !important;
-  border-color: var(--fluent-accent) !important;
-}
-
-html.high-contrast.dark .el-button--primary {
-  color: #000000 !important;
 }
 
 html.high-contrast .el-table,

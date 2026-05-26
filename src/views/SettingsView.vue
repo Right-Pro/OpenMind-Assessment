@@ -427,7 +427,7 @@ async function restoreDatabase() {
     const result = await window.electronAPI.dbRestore()
     if (result.success) {
       ElMessage.success('数据库已成功恢复')
-      // 恢复成功后，需要重新加载当前数据（比如重新加载设置和用户列表）
+      // 恢复成功后，需要重新加载当前数据（比如重新加载设置 and 用户列表）
       await settingsStore.init()
       await userStore.loadUsers()
 
@@ -736,7 +736,180 @@ function openScalesDir() {
 function goBack() {
   router.push('/')
 }
+
+// 快捷键设置逻辑
+import { computed } from 'vue'
+
+const shortcutNames: Record<string, string> = {
+  createNewSubject: '新建被试 (默认: Ctrl+N)',
+  saveSubmit: '保存/提交 (默认: Ctrl+S)',
+  printReport: '打印报告 (默认: Ctrl+P)',
+  goBack: '返回上一页 (默认: Esc)',
+  toggleDarkMode: '切换暗色模式 (默认: Ctrl+Shift+L)',
+  startAssessment: '开始测评 (默认: F5)'
+}
+
+const shortcutTableData = computed(() => {
+  const shortcuts = settingsStore.keyboardShortcuts
+  return Object.entries(shortcuts).map(([id, val]) => {
+    return {
+      id,
+      name: shortcutNames[id] || id,
+      key: val.key,
+      enabled: val.enabled
+    }
+  })
+})
+
+const editingShortcutId = ref<string | null>(null)
+
+function startEditShortcut(id: string) {
+  editingShortcutId.value = id
+  window.addEventListener('keydown', captureShortcut, true)
+}
+
+function captureShortcut(e: KeyboardEvent) {
+  e.preventDefault()
+  e.stopPropagation()
+
+  const keyName = e.key
+  // 排除修饰键本身
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(keyName)) {
+    return
+  }
+
+  const keys: string[] = []
+  if (e.ctrlKey || e.metaKey) keys.push('Ctrl')
+  if (e.shiftKey) keys.push('Shift')
+  if (e.altKey) keys.push('Alt')
+
+  let formattedKey = keyName
+  if (formattedKey === ' ') formattedKey = 'Space'
+  if (formattedKey.length === 1) {
+    formattedKey = formattedKey.toUpperCase()
+  } else {
+    if (formattedKey === 'Escape') formattedKey = 'Esc'
+  }
+  keys.push(formattedKey)
+  const pressedStr = keys.join('+')
+
+  const id = editingShortcutId.value
+  if (!id) return
+
+  // 冲突检测
+  let conflictId: string | null = null
+  const currentShortcuts = JSON.parse(JSON.stringify(settingsStore.keyboardShortcuts))
+  for (const [sId, val] of Object.entries(currentShortcuts) as any[]) {
+    if (sId !== id && val.enabled && val.key === pressedStr) {
+      conflictId = sId
+      break
+    }
+  }
+
+  const finishSave = async (swap = false) => {
+    if (swap && conflictId) {
+      // 交换快捷键
+      const oldVal = currentShortcuts[id].key
+      currentShortcuts[conflictId].key = oldVal
+    }
+    currentShortcuts[id].key = pressedStr
+    currentShortcuts[id].enabled = true
+    await settingsStore.setKeyboardShortcuts(currentShortcuts)
+    ElMessage.success('快捷键设置成功')
+    cleanupCapture()
+  }
+
+  if (conflictId) {
+    const conflictName = shortcutNames[conflictId] || conflictId
+    ElMessageBox.confirm(
+      `该快捷键已被 "${conflictName}" 占用，是否交换？`,
+      '快捷键冲突',
+      {
+        confirmButtonText: '确定交换',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    ).then(() => {
+      finishSave(true)
+    }).catch(() => {
+      cleanupCapture()
+    })
+  } else {
+    finishSave(false)
+  }
+}
+
+function cleanupCapture() {
+  editingShortcutId.value = null
+  window.removeEventListener('keydown', captureShortcut, true)
+}
+
+async function toggleShortcutEnable(id: string, enabled: boolean) {
+  const currentShortcuts = JSON.parse(JSON.stringify(settingsStore.keyboardShortcuts))
+  if (currentShortcuts[id]) {
+    currentShortcuts[id].enabled = enabled
+    await settingsStore.setKeyboardShortcuts(currentShortcuts)
+    ElMessage.success(enabled ? '快捷键已启用' : '快捷键已禁用')
+  }
+}
+
+async function restoreDefaultShortcuts() {
+  try {
+    await ElMessageBox.confirm('是否确定恢复所有快捷键到默认设置？', '恢复默认', {
+      confirmButtonText: '确定恢复',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await settingsStore.restoreDefaultShortcuts()
+    ElMessage.success('快捷键已恢复默认')
+  } catch {}
+}
 </script>
+
+<style scoped>
+.settings-view {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.page-header h2 {
+  margin: 0;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dark :deep(.el-card) {
+  background: var(--app-card, #16213e);
+  color: var(--app-text, #e0e0e0);
+}
+</style>
+
+<style>
+@keyframes blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+</style>
 
 <template>
   <div class="settings-view">
@@ -814,15 +987,24 @@ function goBack() {
             />
           </el-form-item>
           <el-form-item label="字体大小">
-            <el-radio-group
-              :model-value="settingsStore.fontSize"
-              @update:model-value="settingsStore.setFontSize"
-            >
-              <el-radio-button label="small">小</el-radio-button>
-              <el-radio-button label="medium">中</el-radio-button>
-              <el-radio-button label="large">大</el-radio-button>
-              <el-radio-button label="xlarge">特大</el-radio-button>
-            </el-radio-group>
+            <div style="display: flex; align-items: center; width: 100%; gap: 16px;">
+              <el-slider
+                :model-value="settingsStore.fontSizeSlider"
+                :min="12"
+                :max="24"
+                :step="1"
+                @input="settingsStore.updateFontSizeSliderTemp"
+                @change="settingsStore.setFontSizeSlider"
+                style="flex: 1; max-width: 320px;"
+              />
+              <span style="font-weight: bold; width: 45px; text-align: right;">{{ settingsStore.fontSizeSlider }}px</span>
+            </div>
+          </el-form-item>
+          <el-form-item label="高对比度模式">
+            <el-switch
+              :model-value="settingsStore.highContrastMode"
+              @update:model-value="settingsStore.setHighContrastMode"
+            />
           </el-form-item>
           <el-form-item label="显示题号">
             <el-switch
@@ -1008,6 +1190,50 @@ function goBack() {
             导出全部原始数据
           </el-button>
         </div>
+      </el-card>
+
+      <!-- 快捷键设置 -->
+      <el-card class="settings-section">
+        <template #header>
+          <span>快捷键设置</span>
+        </template>
+        <el-form label-width="180px">
+          <el-table :data="shortcutTableData" style="width: 100%; margin-bottom: 16px;">
+            <el-table-column label="操作名称" prop="name" width="200" />
+            <el-table-column label="当前快捷键" width="220">
+              <template #default="{ row }">
+                <span v-if="editingShortcutId === row.id" style="color: var(--el-color-primary); font-weight: bold; animation: blink 1s infinite;">
+                  请按快捷键...
+                </span>
+                <span v-else-if="!row.enabled || !row.key" style="color: #909399;">已禁用</span>
+                <el-tag v-else type="info" size="default" style="font-family: monospace; font-size: 14px; font-weight: bold;">{{ row.key }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="启用">
+              <template #default="{ row }">
+                <el-switch
+                  :model-value="row.enabled"
+                  @change="(val: boolean) => toggleShortcutEnable(row.id, val)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150">
+              <template #default="{ row }">
+                <el-button
+                  type="primary"
+                  size="small"
+                  :disabled="editingShortcutId !== null"
+                  @click="startEditShortcut(row.id)"
+                >
+                  修改
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div style="display: flex; justify-content: flex-start;">
+            <el-button type="warning" @click="restoreDefaultShortcuts">恢复默认快捷键</el-button>
+          </div>
+        </el-form>
       </el-card>
 
       <!-- 定时自动备份 (管理员可见) -->

@@ -802,6 +802,122 @@ onMounted(async () => {
     }
   }
 })
+
+// =========================================================================
+// 模块一：危机预警拦截相关状态与逻辑
+// =========================================================================
+import { useAuthStore } from '../stores/authStore'
+const authStore = useAuthStore()
+const crisisDialogVisible = ref(false)
+const crisisInterventionNote = ref('')
+const crisisSubmitting = ref(false)
+
+const isCrisisAlert = computed(() => {
+  if (!result.value || !scale.value) return false
+  const scaleId = scale.value.id ? scale.value.id.toUpperCase() : ''
+  const score = result.value.score !== undefined ? result.value.score : 0
+  const severity = result.value.severity || ''
+  
+  if (scaleId === 'BSS' && score > 0) return true
+  
+  if (scaleId === 'C-SSRS') {
+    const conclusion = result.value.conclusion || ''
+    const severityStr = String(severity || '')
+    if (conclusion.includes('高风险') || conclusion.includes('自杀') || severityStr.includes('高风险') || severityStr.includes('自杀')) {
+      return true
+    }
+  }
+  
+  if (scaleId === 'PHQ-9' && score >= 20) return true
+  
+  const sevLower = String(severity || '').toLowerCase()
+  if (sevLower === 'critical' || sevLower === 'severe' || sevLower.includes('极重度') || sevLower.includes('重度') || sevLower.includes('极高') || sevLower.includes('高危')) {
+    return true
+  }
+  
+  return false
+})
+
+async function checkAndHandleCrisisAlert() {
+  if (!result.value || !isCrisisAlert.value) return
+  
+  const testId = result.value.id
+  if (!testId) return
+  
+  try {
+    const alerts = await window.electronAPI.dbQuery('SELECT * FROM crisis_alerts WHERE test_record_id = ?', [testId])
+    if (alerts && alerts.length > 0) {
+      const alert = alerts[0]
+      if (alert.status === 'acknowledged' || alert.status === 'resolved') {
+        crisisDialogVisible.value = false
+        return
+      }
+      crisisDialogVisible.value = true
+    } else {
+      const alertLevel = (scale.value.id.toUpperCase() === 'BSS' || scale.value.id.toUpperCase() === 'C-SSRS') ? 'critical' : 'high'
+      const alertReason = `量表: ${scale.value.name || ''}, 得分: ${result.value.score || 0}, 风险等级: ${result.value.severity || ''}`
+      const subjectId = result.value.userId || result.value.user_id || 0
+      
+      await window.electronAPI.dbRun(
+        `INSERT INTO crisis_alerts (test_record_id, scale_id, subject_id, alert_level, alert_reason, status, created_at)
+         VALUES (?, ?, ?, ?, ?, 'pending', datetime('now', 'localtime'))`,
+         [testId, scale.value.id, subjectId, alertLevel, alertReason]
+      )
+      crisisDialogVisible.value = true
+    }
+  } catch (err) {
+    console.error('Check crisis alert error:', err)
+  }
+}
+
+async function submitCrisisIntervention() {
+  if (crisisInterventionNote.value.trim().length < 5) return
+  if (!result.value) return
+  
+  crisisSubmitting.value = true
+  try {
+    const operatorName = authStore.user?.name || authStore.user?.username || '系统管理员'
+    const testId = result.value.id
+    
+    await window.electronAPI.dbRun(
+      `UPDATE crisis_alerts 
+       SET status = 'acknowledged', acknowledged_note = ?, resolved_at = datetime('now', 'localtime')
+       WHERE test_record_id = ?`,
+      [crisisInterventionNote.value.trim(), testId]
+    )
+    
+    const alertReason = `被试: ${result.value.userName || result.value.user_id || ''}, 量表: ${scale.value.name || ''}, 已由操作员 ${operatorName} 介入处理。`
+    await window.electronAPI.dbRun(
+      `INSERT INTO notifications (type, title, content, related_id, is_read, created_at)
+       VALUES ('crisis', '高危结果预警介入', ?, ?, 0, datetime('now', 'localtime'))`,
+      [alertReason, testId]
+    )
+    
+    crisisDialogVisible.value = false
+    ElMessage.success('干预记录已保存，预警已解除锁定。')
+  } catch (err) {
+    ElMessage.error('提交失败: ' + err.message)
+  } finally {
+    crisisSubmitting.value = false
+  }
+}
+
+watch(() => result.value, (newVal) => {
+  if (newVal && newVal.id) {
+    checkAndHandleCrisisAlert()
+  }
+}, { immediate: true })
+
+watch(crisisDialogVisible, (val) => {
+  const container = document.querySelector('.result-container') || document.querySelector('.result-view') || document.querySelector('.app-container')
+  if (container) {
+    if (val) {
+      container.classList.add('crisis-locked-blur')
+    } else {
+      container.classList.remove('crisis-locked-blur')
+    }
+  }
+})
 </script>
 
 <template>
@@ -1411,6 +1527,73 @@ onMounted(async () => {
       </div>
     </div>
   </div>
+
+  <!-- 危机预警弹窗拦截 -->
+  <el-dialog
+    v-model="crisisDialogVisible"
+    width="90%"
+    top="5vh"
+    :close-on-click-modal="false"
+    :close-on-press-escape="false"
+    :show-close="false"
+    modal-class="crisis-modal-overlay"
+    class="crisis-custom-dialog"
+  >
+    <template #header>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+        <el-icon size="30px" color="#F56C6C"><Warning /></el-icon>
+        <span style="font-size: 24px; font-weight: bold; color: #F56C6C;">高危结果预警</span>
+      </div>
+    </template>
+
+    <div style="padding: 20px; line-height: 1.8;">
+      <el-descriptions :column="2" border size="large">
+        <el-descriptions-item label="被试姓名">
+          <span style="font-weight: bold; font-size: 16px;">{{ result?.userName || '未知被试' }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="量表名称">
+          <span>{{ scale?.name || '未知量表' }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="测评得分">
+          <span style="color: #F56C6C; font-weight: bold; font-size: 18px;">{{ result?.score }} 分</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="风险等级">
+          <el-tag type="danger" effect="dark" size="large">{{ result?.severity || '高危' }}</el-tag>
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <div style="margin-top: 25px; text-align: center; color: #F56C6C; font-size: 18px; font-weight: bold;">
+        ⚠️ 该被试测评结果达到高危阈值，请立即采取干预措施！
+      </div>
+
+      <div style="margin-top: 25px;">
+        <div style="margin-bottom: 10px; font-weight: bold; font-size: 14px;">干预措施记录：</div>
+        <el-input
+          v-model="crisisInterventionNote"
+          type="textarea"
+          :rows="4"
+          placeholder="请记录已采取的干预措施（至少 5 个字）"
+          maxlength="500"
+          show-word-limit
+        />
+      </div>
+    </div>
+
+    <template #footer>
+      <div style="text-align: center; padding-bottom: 10px;">
+        <el-button
+          type="danger"
+          size="large"
+          :disabled="crisisInterventionNote.trim().length < 5"
+          :loading="crisisSubmitting"
+          @click="submitCrisisIntervention"
+          style="width: 200px; font-size: 16px;"
+        >
+          确认已介入
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -1666,5 +1849,24 @@ onMounted(async () => {
     width: 100% !important;
     height: auto !important;
   }
+}
+
+.crisis-locked-blur {
+  filter: blur(2px) !important;
+  pointer-events: none !important;
+}
+.crisis-modal-overlay {
+  background-color: rgba(180, 0, 0, 0.15) !important;
+}
+.crisis-custom-dialog {
+  border-radius: 8px;
+  overflow: hidden;
+}
+.dark .crisis-custom-dialog {
+  background-color: #1e1e1e !important;
+  border: 1px solid #4c2c2c;
+}
+.dark .crisis-modal-overlay {
+  background-color: rgba(100, 0, 0, 0.25) !important;
 }
 </style>

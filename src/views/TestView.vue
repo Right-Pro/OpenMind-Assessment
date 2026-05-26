@@ -768,8 +768,15 @@ onMounted(async () => {
     router.push('/')
     return
   }
+  
+  // 进入答题界面，通过 IPC 禁用窗口控制按钮
+  if (window.electronAPI && typeof window.electronAPI.windowDisableControls === 'function') {
+    await window.electronAPI.windowDisableControls()
+  }
+
   testStore.initTest(scale.value)
   window.addEventListener('keydown', handleKeydown)
+  window.addEventListener('shortcut-save-submit', handleShortcutSaveSubmit)
   
   // 检查并自动设定自动朗读初始勾选状态
   initTtsToggle()
@@ -778,11 +785,21 @@ onMounted(async () => {
   await checkForIncompleteProgress()
 })
 
-onBeforeUnmount(() => {
+onBeforeUnmount(async () => {
   stopTimer()
   stopSpeaking()
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('shortcut-save-submit', handleShortcutSaveSubmit)
+  
+  // 退出答题界面，通过 IPC 恢复窗口控制按钮
+  if (window.electronAPI && typeof window.electronAPI.windowEnableControls === 'function') {
+    await window.electronAPI.windowEnableControls()
+  }
 })
+
+function handleShortcutSaveSubmit() {
+  submitTest()
+}
 
 // 监听题号变化，切题时自动停止朗读并朗读新题目
 watch(() => testStore.currentQuestionIndex, () => {

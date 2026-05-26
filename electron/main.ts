@@ -329,6 +329,8 @@ function initDatabase() {
       result_json TEXT,
       duration_seconds INTEGER,
       status TEXT DEFAULT 'completed',
+      answer_behavior TEXT, -- JSON string
+      cutoff_snapshot TEXT, -- JSON string
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
@@ -428,6 +430,74 @@ function initDatabase() {
   } catch (e) {
     // Column already exists, ignore
   }
+
+  try {
+    db.exec("ALTER TABLE tests ADD COLUMN answer_behavior TEXT")
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  try {
+    db.exec("ALTER TABLE tests ADD COLUMN cutoff_snapshot TEXT")
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  // Create crisis_alerts table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crisis_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      test_record_id INTEGER,
+      scale_id TEXT,
+      subject_id INTEGER,
+      alert_level TEXT, -- 'high', 'critical'
+      alert_reason TEXT,
+      status TEXT DEFAULT 'pending', -- 'pending', 'acknowledged', 'resolved'
+      acknowledged_note TEXT,
+      operator_name TEXT,
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      resolved_at TEXT
+    );
+  `);
+
+  // Create follow_up_plans table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS follow_up_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject_id INTEGER,
+      scale_id TEXT,
+      planned_date TEXT,
+      reminder_days INTEGER DEFAULT 3,
+      status TEXT DEFAULT 'pending', -- 'pending', 'completed', 'expired'
+      created_at TEXT DEFAULT (datetime('now', 'localtime')),
+      completed_test_record_id INTEGER,
+      notes TEXT
+    );
+  `);
+
+  // Create scale_cutoff_settings table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scale_cutoff_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scale_id TEXT UNIQUE,
+      severity_levels TEXT, -- JSON array string
+      is_custom INTEGER DEFAULT 1,
+      updated_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+  `);
+
+  // Create notifications table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT, -- 'follow_up', 'crisis', 'system'
+      title TEXT,
+      content TEXT,
+      related_id INTEGER, -- test_record_id, follow_up_id, etc.
+      is_read INTEGER DEFAULT 0, -- 0 for false, 1 for true
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+  `);
 
   return dbPath
 }
@@ -769,6 +839,28 @@ ipcMain.handle('window-maximize', () => {
 
 ipcMain.handle('window-close', () => {
   mainWindow?.close()
+})
+
+ipcMain.handle('window:disable-controls', () => {
+  if (!mainWindow) return
+  mainWindow.setFullScreen(true)
+  mainWindow.setClosable(false)
+  mainWindow.setMinimizable(false)
+  mainWindow.setMaximizable(false)
+  if (process.platform === 'darwin') {
+    mainWindow.setWindowButtonVisibility?.(false)
+  }
+})
+
+ipcMain.handle('window:enable-controls', () => {
+  if (!mainWindow) return
+  mainWindow.setFullScreen(false)
+  mainWindow.setClosable(true)
+  mainWindow.setMinimizable(true)
+  mainWindow.setMaximizable(true)
+  if (process.platform === 'darwin') {
+    mainWindow.setWindowButtonVisibility?.(true)
+  }
 })
 
 ipcMain.handle('window-is-maximized', () => {

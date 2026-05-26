@@ -62,5 +62,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
-  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized')
+  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  windowDisableControls: () => ipcRenderer.invoke('window:disable-controls'),
+  windowEnableControls: () => ipcRenderer.invoke('window:enable-controls')
 })

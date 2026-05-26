@@ -269,6 +269,11 @@ export const useSettingsStore = defineStore('settings', () => {
     updateFontGlobal(val)
   }
 
+  function updateFontSizeSliderTemp(val: number) {
+    fontSizeSlider.value = val
+    updateFontGlobal(val)
+  }
+
   function updateFontGlobal(val: number) {
     document.documentElement.style.setProperty('--app-font-size', `${val}px`)
   }
@@ -353,13 +358,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   const fontSizeClass = () => {
-    const map: Record<string, string> = {
-      small: 'fs-small',
-      medium: 'fs-medium',
-      large: 'fs-large',
-      xlarge: 'fs-xlarge'
-    }
-    return map[fontSize.value] || 'fs-medium'
+    return ''
   }
 
   return {
@@ -382,6 +381,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setDarkMode,
     setFontSize,
     setFontSizeSlider,
+    updateFontSizeSliderTemp,
     updateFontGlobal,
     setHighContrastMode,
     updateHighContrastGlobal,

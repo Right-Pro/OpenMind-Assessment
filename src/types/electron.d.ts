@@ -65,6 +65,8 @@ export interface ElectronAPI {
   windowMaximize: () => Promise<void>
   windowClose: () => Promise<void>
   windowIsMaximized: () => Promise<boolean>
+  windowDisableControls: () => Promise<void>
+  windowEnableControls: () => Promise<void>
 }
 
 declare global {
