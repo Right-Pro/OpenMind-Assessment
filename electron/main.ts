@@ -101,7 +101,214 @@ function initDatabase() {
 
   db = new Database(dbPath)
 
+  // 自动检查与修复 scale_categories 表结构
+  try {
+    const catTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='scale_categories'").get();
+    if (!catTableExists) {
+      db.exec(`
+        CREATE TABLE scale_categories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT UNIQUE NOT NULL,
+          color TEXT NOT NULL,
+          sort_order INTEGER DEFAULT 0,
+          created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+      `);
+      console.log('scale_categories 表不存在，已创建正确结构的表。');
+    } else {
+      const columns = db.prepare("PRAGMA table_info(scale_categories)").all() as any[];
+      const requiredCols = ['id', 'name', 'color', 'sort_order', 'created_at'];
+      let columnsOk = true;
+      for (const rc of requiredCols) {
+        if (!columns.find(c => c.name === rc)) {
+          columnsOk = false;
+          break;
+        }
+      }
+
+      let nameUnique = false;
+      try {
+        const indices = db.prepare("PRAGMA index_list(scale_categories)").all() as any[];
+        for (const idx of indices) {
+          if (idx.unique === 1) {
+            const idxCols = db.prepare(`PRAGMA index_info("${idx.name}")`).all() as any[];
+            if (idxCols.some(c => c.name === 'name')) {
+              nameUnique = true;
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        nameUnique = false;
+      }
+
+      if (!columnsOk || !nameUnique) {
+        console.log('scale_categories 表结构不正确，正在进行修复/迁移...');
+        db.exec("PRAGMA foreign_keys = OFF;");
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS scale_categories_temp (
+            id INTEGER,
+            name TEXT,
+            color TEXT,
+            sort_order INTEGER,
+            created_at TEXT
+          );
+        `);
+        try {
+          const existingColNames = columns.map(c => c.name);
+          const colsToCopy = requiredCols.filter(rc => existingColNames.includes(rc));
+          if (colsToCopy.length > 0) {
+            const colList = colsToCopy.join(', ');
+            db.exec(`INSERT INTO scale_categories_temp (${colList}) SELECT ${colList} FROM scale_categories`);
+          }
+        } catch (e) {
+          console.error("复制 scale_categories 数据到临时表失败:", e);
+        }
+
+        db.exec(`DROP TABLE scale_categories`);
+        db.exec(`
+          CREATE TABLE scale_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            color TEXT NOT NULL,
+            sort_order INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now', 'localtime'))
+          );
+        `);
+
+        try {
+          const rows = db.prepare("SELECT id, name, color, sort_order, created_at FROM scale_categories_temp").all() as any[];
+          const insertStmt = db.prepare(`
+            INSERT OR IGNORE INTO scale_categories (id, name, color, sort_order, created_at)
+            VALUES (?, ?, ?, ?, ?)
+          `);
+
+          const insertMany = db.transaction((data) => {
+            const seenNames = new Set<string>();
+            let nameCounter = 1;
+            for (const row of data) {
+              const id = row.id;
+              let name = row.name ? row.name.trim() : '';
+              if (!name) {
+                name = `Category_${nameCounter++}`;
+              }
+              let uniqueName = name;
+              let suffix = 1;
+              while (seenNames.has(uniqueName.toLowerCase())) {
+                uniqueName = `${name}_${suffix++}`;
+              }
+              seenNames.add(uniqueName.toLowerCase());
+
+              const color = row.color || '#409EFF';
+              const sort_order = row.sort_order !== null && row.sort_order !== undefined ? row.sort_order : 0;
+              const created_at = row.created_at || new Date().toISOString();
+              insertStmt.run(id, uniqueName, color, sort_order, created_at);
+            }
+          });
+          insertMany(rows);
+        } catch (e) {
+          console.error("恢复 scale_categories 数据失败:", e);
+        }
+
+        db.exec(`DROP TABLE scale_categories_temp`);
+        db.exec("PRAGMA foreign_keys = ON;");
+        console.log('scale_categories 表修复/迁移完成。');
+      }
+    }
+  } catch (err) {
+    console.error('检查/修复 scale_categories 表发生错误:', err);
+  }
+
+  // 自动检查与修复 scale_category_relations 表结构
+  try {
+    const relTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='scale_category_relations'").get();
+    if (!relTableExists) {
+      db.exec(`
+        CREATE TABLE scale_category_relations (
+          scale_id TEXT NOT NULL,
+          category_id INTEGER NOT NULL,
+          PRIMARY KEY (scale_id, category_id),
+          FOREIGN KEY (category_id) REFERENCES scale_categories(id) ON DELETE CASCADE
+        );
+      `);
+      console.log('scale_category_relations 表不存在，已创建正确结构的表。');
+    } else {
+      const columns = db.prepare("PRAGMA table_info(scale_category_relations)").all() as any[];
+      let isCorrect = true;
+      if (columns.length !== 2) {
+        isCorrect = false;
+      } else {
+        const scaleIdCol = columns.find(c => c.name === 'scale_id');
+        const categoryIdCol = columns.find(c => c.name === 'category_id');
+        if (!scaleIdCol || !categoryIdCol) {
+          isCorrect = false;
+        } else {
+          const scaleIdOk = scaleIdCol.type.toUpperCase() === 'TEXT' && scaleIdCol.notnull === 1 && scaleIdCol.pk > 0;
+          const categoryIdOk = ['INTEGER', 'INT'].includes(categoryIdCol.type.toUpperCase()) && categoryIdCol.notnull === 1 && categoryIdCol.pk > 0;
+          if (!scaleIdOk || !categoryIdOk) {
+            isCorrect = false;
+          }
+        }
+      }
+
+      if (!isCorrect) {
+        console.log('scale_category_relations 表结构不正确，正在进行修复/迁移...');
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS scale_category_relations_temp (
+            scale_id TEXT,
+            category_id INTEGER
+          );
+        `);
+        try {
+          db.exec(`INSERT INTO scale_category_relations_temp SELECT scale_id, category_id FROM scale_category_relations`);
+        } catch (e) {
+          console.error("复制 scale_category_relations 数据到临时表失败:", e);
+        }
+
+        db.exec(`DROP TABLE scale_category_relations`);
+        db.exec(`
+          CREATE TABLE scale_category_relations (
+            scale_id TEXT NOT NULL,
+            category_id INTEGER NOT NULL,
+            PRIMARY KEY (scale_id, category_id),
+            FOREIGN KEY (category_id) REFERENCES scale_categories(id) ON DELETE CASCADE
+          );
+        `);
+
+        try {
+          db.exec(`
+            INSERT OR IGNORE INTO scale_category_relations (scale_id, category_id)
+            SELECT scale_id, category_id FROM scale_category_relations_temp
+            WHERE scale_id IS NOT NULL AND category_id IS NOT NULL
+          `);
+        } catch (e) {
+          console.error("恢复 scale_category_relations 数据失败:", e);
+        }
+
+        db.exec(`DROP TABLE scale_category_relations_temp`);
+        console.log('scale_category_relations 表修复/迁移完成。');
+      }
+    }
+  } catch (err) {
+    console.error('检查/修复 scale_category_relations 表发生错误:', err);
+  }
+
   db.exec(`
+    CREATE TABLE IF NOT EXISTS scale_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      color TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+
+    CREATE TABLE IF NOT EXISTS scale_category_relations (
+      scale_id TEXT NOT NULL,
+      category_id INTEGER NOT NULL,
+      PRIMARY KEY (scale_id, category_id),
+      FOREIGN KEY (category_id) REFERENCES scale_categories(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -1236,8 +1443,18 @@ ipcMain.handle('db-query', async (_, sql: string, params: any[] = []) => {
 ipcMain.handle('db-run', async (_, sql: string, params: any[] = []) => {
   if (!db) throw new Error('Database not initialized')
   ensureAppointmentsTableExists()
-  const stmt = db.prepare(sql)
-  return stmt.run(...params)
+  try {
+    const stmt = db.prepare(sql)
+    return stmt.run(...params)
+  } catch (err: any) {
+    if (err.message && err.message.includes('UNIQUE constraint failed')) {
+      if (err.message.includes('scale_categories.name')) {
+        throw new Error('分类名称已存在，请使用其他名称')
+      }
+      throw new Error('违反唯一约束，数据已存在')
+    }
+    throw err
+  }
 })
 
 ipcMain.handle('db-backup', async () => {

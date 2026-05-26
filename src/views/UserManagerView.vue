@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useScaleStore } from '@/stores/scaleStore'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import type { User, TestHistory } from '@/types'
 import * as XLSX from 'xlsx'
 import html2canvas from 'html2canvas'
@@ -63,6 +63,7 @@ const isGeneratingPDF = ref(false)
 const profilePrintArea = ref<HTMLElement | null>(null)
 
 async function generatePortfolio(user: User) {
+  let loadingInstance: any = null
   try {
     const histories = await userStore.getTestHistory(user.id)
     if (!histories || histories.length === 0) {
@@ -70,7 +71,11 @@ async function generatePortfolio(user: User) {
       return
     }
 
-    ElMessage.info('正在生成心理档案袋 PDF...')
+    loadingInstance = ElLoading.service({
+      lock: true,
+      text: '正在生成 PDF，请稍候...',
+      background: 'rgba(0, 0, 0, 0.6)'
+    })
     
     // 我们在此处用纯 jsPDF 来绘制高要求的 PDF 档案袋以符合验收标准！
     // A4 尺寸：210 x 297 mm
@@ -460,6 +465,12 @@ async function generatePortfolio(user: User) {
         filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
       })
 
+      // 在弹出保存对话框后，或者是保存完成后，关闭遮罩
+      if (loadingInstance) {
+        loadingInstance.close()
+        loadingInstance = null
+      }
+
       if (saveRes.filePath) {
         const pdfArrayBuffer = pdf.output('arraybuffer')
         const bytes = new Uint8Array(pdfArrayBuffer)
@@ -477,12 +488,20 @@ async function generatePortfolio(user: User) {
         }
       }
     } else {
+      if (loadingInstance) {
+        loadingInstance.close()
+        loadingInstance = null
+      }
       pdf.save(defaultName)
       ElMessage.success('心理档案袋 PDF 导出成功！')
     }
     
   } catch (err: any) {
-    ElMessage.error('生成档案袋失败: ' + err.message)
+    if (loadingInstance) {
+      loadingInstance.close()
+      loadingInstance = null
+    }
+    ElMessage.error('生成失败，请重试')
   }
 }
 

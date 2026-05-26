@@ -161,7 +161,90 @@
   --app-text: var(--fluent-text-primary);
 }
 
+/* 高对比度模式样式声明 */
+html.high-contrast {
+  /* 浅色高对比度：白底（#FFFFFF）+ 黑字（#000000）+ 粗黑边框（#000000 2px） */
+  --fluent-bg: #ffffff !important;
+  --fluent-sidebar-bg: #ffffff !important;
+  --fluent-card-bg: #ffffff !important;
+  --fluent-card-border: #000000 !important;
+  --fluent-text-primary: #000000 !important;
+  --fluent-text-secondary: #000000 !important;
+  --fluent-accent: #000000 !important;
+  --fluent-accent-hover: #000000 !important;
+  --fluent-accent-active: #000000 !important;
+  --fluent-subtle-fill: #ffffff !important;
+  --fluent-subtle-fill-hover: #e0e0e0 !important;
+  --fluent-control-border: #000000 !important;
+  
+  --el-color-primary: #000000 !important;
+  --el-border-color: #000000 !important;
+  --el-border-color-light: #000000 !important;
+  --el-border-width: 2px !important;
+  --el-border-color-lighter: #000000 !important;
+}
+
+html.high-contrast.dark {
+  /* 暗色高对比度：黑底（#000000）+ 亮黄字（#FFFF00）+ 亮蓝边框（#00FFFF 2px） */
+  --fluent-bg: #000000 !important;
+  --fluent-sidebar-bg: #000000 !important;
+  --fluent-card-bg: #000000 !important;
+  --fluent-card-border: #00ffff !important;
+  --fluent-text-primary: #ffff00 !important;
+  --fluent-text-secondary: #ffff00 !important;
+  --fluent-accent: #00ffff !important;
+  --fluent-accent-hover: #00ffff !important;
+  --fluent-accent-active: #00ffff !important;
+  --fluent-subtle-fill: #000000 !important;
+  --fluent-subtle-fill-hover: #333333 !important;
+  --fluent-control-border: #00ffff !important;
+  
+  --el-color-primary: #00ffff !important;
+  --el-border-color: #00ffff !important;
+  --el-border-color-light: #00ffff !important;
+  --el-border-width: 2px !important;
+  --el-border-color-lighter: #00ffff !important;
+}
+
+/* 高对比度模式下按钮、边框和交互元素的通用粗边框规则 */
+html.high-contrast .el-button,
+html.high-contrast .el-card,
+html.high-contrast .el-dialog,
+html.high-contrast .el-input__wrapper,
+html.high-contrast .el-textarea__inner,
+html.high-contrast .el-select__wrapper,
+html.high-contrast .fluent-sidebar,
+html.high-contrast .fluent-sidebar-item {
+  border: 2px solid var(--fluent-control-border) !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  color: var(--fluent-text-primary) !important;
+  background-color: var(--fluent-bg) !important;
+}
+
+html.high-contrast .el-button--primary {
+  background-color: var(--fluent-accent) !important;
+  border-color: var(--fluent-accent) !important;
+}
+
+html.high-contrast.dark .el-button--primary {
+  color: #000000 !important;
+}
+
+html.high-contrast .el-table,
+html.high-contrast .el-table tr,
+html.high-contrast .el-table th,
+html.high-contrast .el-table td {
+  border-color: var(--fluent-control-border) !important;
+  color: var(--fluent-text-primary) !important;
+  background-color: var(--fluent-bg) !important;
+}
+
 /* Global resets & typography */
+:root {
+  --app-font-size: 14px; /* 默认 14px */
+}
+
 body {
   font-family: var(--fluent-font-family) !important;
   background-color: var(--fluent-bg) !important;
@@ -169,10 +252,36 @@ body {
   margin: 0;
   padding: 0;
   transition: background-color 0.3s ease, color 0.3s ease;
+  font-size: var(--app-font-size) !important;
 }
 
 h1, h2, h3, h4, h5, h6, span, div, p, button, input, textarea, select {
   font-family: var(--fluent-font-family) !important;
+}
+
+/* 全局字体大小由 --app-font-size 实时控制 */
+body *,
+body *::placeholder,
+.el-button,
+.el-input__inner,
+.el-textarea__inner,
+.el-select__wrapper,
+.fluent-sidebar-item span,
+.fluent-sidebar-logo,
+.el-card__header,
+.el-table {
+  font-size: var(--app-font-size) !important;
+}
+
+/* 标题等可以保持相对大小 */
+h1 {
+  font-size: calc(var(--app-font-size) * 1.8) !important;
+}
+h2 {
+  font-size: calc(var(--app-font-size) * 1.4) !important;
+}
+h3 {
+  font-size: calc(var(--app-font-size) * 1.2) !important;
 }
 
 /* Acrylic / Mica material effect for cards and panels */

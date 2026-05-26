@@ -32,6 +32,56 @@ export const useSettingsStore = defineStore('settings', () => {
     })()
   )
 
+  const fontSizeSlider = ref<number>(
+    (() => {
+      try {
+        const val = localStorage.getItem('settings_font_size_slider')
+        return val ? Number(val) : 14
+      } catch (e) {
+        return 14
+      }
+    })()
+  )
+
+  const highContrastMode = ref<boolean>(
+    (() => {
+      try {
+        return localStorage.getItem('settings_high_contrast_mode') === 'true'
+      } catch (e) {
+        return false
+      }
+    })()
+  )
+
+  // 默认快捷键设置
+  const defaultShortcuts = {
+    createNewSubject: 'Ctrl+N',
+    saveSubmit: 'Ctrl+S',
+    printReport: 'Ctrl+P',
+    goBack: 'Esc',
+    toggleDarkMode: 'Ctrl+Shift+L',
+    startAssessment: 'F5'
+  }
+
+  const keyboardShortcuts = ref<Record<string, { key: string; enabled: boolean }>>(
+    (() => {
+      try {
+        const val = localStorage.getItem('settings_keyboard_shortcuts')
+        if (val) {
+          return JSON.parse(val)
+        }
+      } catch (e) {}
+      return {
+        createNewSubject: { key: 'Ctrl+N', enabled: true },
+        saveSubmit: { key: 'Ctrl+S', enabled: true },
+        printReport: { key: 'Ctrl+P', enabled: true },
+        goBack: { key: 'Esc', enabled: true },
+        toggleDarkMode: { key: 'Ctrl+Shift+L', enabled: true },
+        startAssessment: { key: 'F5', enabled: true }
+      }
+    })()
+  )
+
   const showQuestionNumber = ref(
     (() => {
       try {
@@ -162,9 +212,28 @@ export const useSettingsStore = defineStore('settings', () => {
               watermarkText.value = row.value
               localStorage.setItem('settings_watermarkText', watermarkText.value)
               break
+            case 'font_size_slider':
+              fontSizeSlider.value = Number(row.value) || 14
+              localStorage.setItem('settings_font_size_slider', String(fontSizeSlider.value))
+              break
+            case 'high_contrast_mode':
+              highContrastMode.value = row.value === 'true'
+              localStorage.setItem('settings_high_contrast_mode', String(highContrastMode.value))
+              break
+            case 'keyboard_shortcuts':
+              try {
+                keyboardShortcuts.value = JSON.parse(row.value)
+                localStorage.setItem('settings_keyboard_shortcuts', row.value)
+              } catch (err) {
+                console.error('Parse database shortcuts failed', err)
+              }
+              break
           }
         }
       }
+      // 初始化全局样式
+      updateFontGlobal(fontSizeSlider.value)
+      updateHighContrastGlobal(highContrastMode.value)
     } catch (e) {
       console.error('Settings init error:', e)
     }
@@ -192,6 +261,48 @@ export const useSettingsStore = defineStore('settings', () => {
   async function setFontSize(val: 'small' | 'medium' | 'large' | 'xlarge') {
     fontSize.value = val
     await saveSetting('fontSize', val)
+  }
+
+  async function setFontSizeSlider(val: number) {
+    fontSizeSlider.value = val
+    await saveSetting('font_size_slider', String(val))
+    updateFontGlobal(val)
+  }
+
+  function updateFontGlobal(val: number) {
+    document.documentElement.style.setProperty('--app-font-size', `${val}px`)
+  }
+
+  async function setHighContrastMode(val: boolean) {
+    highContrastMode.value = val
+    await saveSetting('high_contrast_mode', String(val))
+    updateHighContrastGlobal(val)
+  }
+
+  function updateHighContrastGlobal(val: boolean) {
+    if (val) {
+      document.documentElement.classList.add('high-contrast')
+    } else {
+      document.documentElement.classList.remove('high-contrast')
+    }
+  }
+
+  async function setKeyboardShortcuts(val: Record<string, { key: string; enabled: boolean }>) {
+    keyboardShortcuts.value = val
+    await saveSetting('keyboard_shortcuts', JSON.stringify(val))
+  }
+
+  async function restoreDefaultShortcuts() {
+    const defaults = {
+      createNewSubject: { key: 'Ctrl+N', enabled: true },
+      saveSubmit: { key: 'Ctrl+S', enabled: true },
+      printReport: { key: 'Ctrl+P', enabled: true },
+      goBack: { key: 'Esc', enabled: true },
+      toggleDarkMode: { key: 'Ctrl+Shift+L', enabled: true },
+      startAssessment: { key: 'F5', enabled: true }
+    }
+    keyboardShortcuts.value = defaults
+    await saveSetting('keyboard_shortcuts', JSON.stringify(defaults))
   }
 
   async function setShowQuestionNumber(val: boolean) {
@@ -263,9 +374,19 @@ export const useSettingsStore = defineStore('settings', () => {
     testPageBg,
     watermarkText,
     unitLogo,
+    fontSizeSlider,
+    highContrastMode,
+    keyboardShortcuts,
+    defaultShortcuts,
     init,
     setDarkMode,
     setFontSize,
+    setFontSizeSlider,
+    updateFontGlobal,
+    setHighContrastMode,
+    updateHighContrastGlobal,
+    setKeyboardShortcuts,
+    restoreDefaultShortcuts,
     setShowQuestionNumber,
     setUnitInfo,
     setPrivacyAgreed,

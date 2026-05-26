@@ -329,6 +329,110 @@ watch(
   },
   { immediate: true }
 )
+
+// 全局监听按键来实现快捷键自定义功能
+import { useSettingsStore as useSettingsStoreApp } from '@/stores/settingsStore'
+import { useUserStore as useUserStoreApp } from '@/stores/userStore'
+import { useAuthStore as useAuthStoreApp } from '@/stores/authStore'
+
+onMounted(() => {
+  window.addEventListener('keydown', handleGlobalKeyDown)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleGlobalKeyDown)
+})
+
+function handleGlobalKeyDown(e: KeyboardEvent) {
+  // 如果当前在输入框、文本域、选择框等焦点内，不要触发全局快捷键 (除了Esc或其它特殊处理)
+  const target = e.target as HTMLElement
+  const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+  
+  // 允许捕获的事件格式化
+  const keys: string[] = []
+  if (e.ctrlKey || e.metaKey) keys.push('Ctrl')
+  if (e.shiftKey) keys.push('Shift')
+  if (e.altKey) keys.push('Alt')
+  
+  let keyName = e.key
+  if (keyName === ' ') keyName = 'Space'
+  // 排除修饰键自身
+  if (['Control', 'Shift', 'Alt', 'Meta'].includes(keyName)) {
+    return
+  }
+  
+  // 统一首字母大写，或者直接用 keyName
+  if (keyName.length === 1) {
+    keyName = keyName.toUpperCase()
+  } else {
+    // 比如 ArrowUp, Enter, Escape, F5 等
+    if (keyName === 'Escape') keyName = 'Esc'
+  }
+  keys.push(keyName)
+  const pressedStr = keys.join('+')
+
+  // 获取启用的快捷键列表
+  const shortcuts = settingsStore.keyboardShortcuts
+  
+  // 1. 返回上一页 (默认: Esc)
+  if (shortcuts.goBack && shortcuts.goBack.enabled && pressedStr === shortcuts.goBack.key) {
+    // 如果是输入框，按下 Esc 键可以退出输入，不一定非要阻止默认，但应满足返回上一页要求
+    // 排除弹窗或 Dialog 开启时，通常 Element Plus 自己会用 Esc 关闭它，这里我们判断如果不处于 Dialog 等遮罩下，或者可以做路由返回
+    // 确认满足本次返回上一页需求
+    e.preventDefault()
+    router.back()
+    return
+  }
+
+  // 如果是在输入框中，不触发其它快捷键
+  if (isInput) return
+
+  // 2. 新建被试 (默认: Ctrl+N)
+  if (shortcuts.createNewSubject && shortcuts.createNewSubject.enabled && pressedStr === shortcuts.createNewSubject.key) {
+    e.preventDefault()
+    // 触发 App.vue 中暴露的创建被试对话框
+    triggerUserSelect()
+    // 切换到创建被试 tab 页面
+    isCreatingNew.value = true
+    return
+  }
+
+  // 3. 保存/提交 (默认: Ctrl+S)
+  if (shortcuts.saveSubmit && shortcuts.saveSubmit.enabled && pressedStr === shortcuts.saveSubmit.key) {
+    e.preventDefault()
+    // 在答题页：触发提交。需要通知 TestView
+    window.dispatchEvent(new CustomEvent('shortcut-save-submit'))
+    return
+  }
+
+  // 4. 打印报告 (默认: Ctrl+P)
+  if (shortcuts.printReport && shortcuts.printReport.enabled && pressedStr === shortcuts.printReport.key) {
+    e.preventDefault()
+    window.print()
+    return
+  }
+
+  // 5. 切换暗色模式 (默认: Ctrl+Shift+L)
+  if (shortcuts.toggleDarkMode && shortcuts.toggleDarkMode.enabled && pressedStr === shortcuts.toggleDarkMode.key) {
+    e.preventDefault()
+    settingsStore.setDarkMode(!settingsStore.darkMode)
+    return
+  }
+
+  // 6. 开始测评 (默认: F5)
+  if (shortcuts.startAssessment && shortcuts.startAssessment.enabled && pressedStr === shortcuts.startAssessment.key) {
+    e.preventDefault()
+    // 开始测评：如果是量表浏览页/首页，且有选中用户且有选中的量表，或者直接跳转到首页
+    // 我们最稳妥的做法是跳转到首页 "/"，如果已经在量表列表或者选中了量表则可以触发开始
+    // 任务要求“开始测评”快捷键全局生效，所以我们跳转到量表浏览页或触发开始。
+    // 如果当前已经在量表详情或有待测任务，我们可以直接进入，最简单直接是 push('/')，如果已经选了被试，用户可以立刻点选量表。
+    // 如果已经在 TestView 页面，不需要再次触发。
+    if (!route.path.startsWith('/test/')) {
+      router.push('/')
+    }
+    return
+  }
+}
 </script>
 
 <template>
