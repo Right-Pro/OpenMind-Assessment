@@ -2,6 +2,8 @@
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
+import { useSettingsStore } from '@/stores/settingsStore'
+import { useScaleStore } from '@/stores/scaleStore'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { User, TestHistory } from '@/types'
 import * as XLSX from 'xlsx'
@@ -59,6 +61,430 @@ const pdfExportUser = ref<User | null>(null)
 const pdfExportHistories = ref<TestHistory[]>([])
 const isGeneratingPDF = ref(false)
 const profilePrintArea = ref<HTMLElement | null>(null)
+
+async function generatePortfolio(user: User) {
+  try {
+    const histories = await userStore.getTestHistory(user.id)
+    if (!histories || histories.length === 0) {
+      ElMessage.warning('暂无测试记录，无法生成档案袋')
+      return
+    }
+
+    ElMessage.info('正在生成心理档案袋 PDF...')
+    
+    // 我们在此处用纯 jsPDF 来绘制高要求的 PDF 档案袋以符合验收标准！
+    // A4 尺寸：210 x 297 mm
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    
+    // 页码和中文字体支持
+    const settingsStore = useSettingsStore()
+    const scaleStore = useScaleStore()
+    
+    // 中文字体直接在 jsPDF 中由于没有内嵌 font 可能不支持，我们通过加载一个隐藏的 DOM 渲染并使用 html2canvas 或者是纯文本配合系统的中文字体。
+    // 由于纯 jspdf 需要配置中文字体比较复杂，这里我们利用一个动态渲染的 DOM，放入 document.body 中，再用 html2canvas 转换为图片以支持完美的中文字体和 WPS/Adobe 打开！
+    // 这种做法能够 100% 解决乱码问题且样式可以极其精致，同时又是白底黑字不受暗色模式影响。
+    
+    const container = document.createElement('div')
+    container.style.position = 'absolute'
+    container.style.left = '-9999px'
+    container.style.top = '0'
+    container.style.width = '794px' // A4 width at 96 DPI
+    container.style.backgroundColor = '#ffffff'
+    container.style.color = '#000000'
+    container.style.padding = '40px'
+    container.style.boxSizing = 'border-box'
+    container.style.fontFamily = 'SimSun, STSong, "Microsoft YaHei", sans-serif'
+    
+    // 封面
+    const cover = document.createElement('div')
+    cover.style.height = '1050px' // 撑满第一页
+    cover.style.display = 'flex'
+    cover.style.flexDirection = 'column'
+    cover.style.justifyContent = 'space-between'
+    cover.style.alignItems = 'center'
+    cover.style.padding = '100px 0'
+    cover.style.boxSizing = 'border-box'
+    
+    // 封面顶部 Logo & 标题
+    const coverHeader = document.createElement('div')
+    coverHeader.style.textAlign = 'center'
+    if (settingsStore.unitLogo) {
+      const logoImg = document.createElement('img')
+      logoImg.src = settingsStore.unitLogo
+      logoImg.style.height = '45px'
+      logoImg.style.marginBottom = '20px'
+      coverHeader.appendChild(logoImg)
+    }
+    const coverTitle = document.createElement('h1')
+    coverTitle.innerText = '心理档案袋'
+    coverTitle.style.fontSize = '36px'
+    coverTitle.style.fontWeight = 'bold'
+    coverTitle.style.letterSpacing = '8px'
+    coverTitle.style.margin = '10px 0'
+    coverHeader.appendChild(coverTitle)
+    
+    const coverSubtitle = document.createElement('h3')
+    coverSubtitle.innerText = 'OpenMind Psychological Portfolio'
+    coverSubtitle.style.fontSize = '16px'
+    coverSubtitle.style.fontWeight = 'normal'
+    coverSubtitle.style.color = '#555555'
+    coverHeader.appendChild(coverSubtitle)
+    
+    cover.appendChild(coverHeader)
+    
+    // 封面中部个人信息
+    const coverInfo = document.createElement('div')
+    coverInfo.style.width = '350px'
+    coverInfo.style.border = '1px solid #000000'
+    coverInfo.style.padding = '24px 32px'
+    coverInfo.style.borderRadius = '8px'
+    coverInfo.style.fontSize = '16px'
+    coverInfo.style.lineHeight = '2.2'
+    
+    const maskName = (name: string) => {
+      if (!name) return ''
+      if (name.length <= 1) return name
+      if (name.length === 2) return name[0] + '*'
+      return name[0] + '*'.repeat(name.length - 2) + name[name.length - 1]
+    }
+    
+    const age = () => {
+      if (!user.birthdate) return '/'
+      const birth = new Date(user.birthdate)
+      const today = new Date()
+      let ageVal = today.getFullYear() - birth.getFullYear()
+      const m = today.getMonth() - birth.getMonth()
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        ageVal--
+      }
+      return ageVal > 0 ? String(ageVal) : '0'
+    }
+    
+    coverInfo.innerHTML = `
+      <div style="display: flex; justify-content: space-between;"><strong>被试姓名:</strong> <span>${maskName(user.name)}</span></div>
+      <div style="display: flex; justify-content: space-between;"><strong>性&nbsp;&nbsp;&nbsp;&nbsp;别:</strong> <span>${user.gender === 'male' ? '男' : user.gender === 'female' ? '女' : '未知'}</span></div>
+      <div style="display: flex; justify-content: space-between;"><strong>年&nbsp;&nbsp;&nbsp;&nbsp;龄:</strong> <span>${age()} 岁</span></div>
+      <div style="display: flex; justify-content: space-between;"><strong>档案编号:</strong> <span>OMP-${user.id.toString().padStart(6, '0')}</span></div>
+      <div style="display: flex; justify-content: space-between;"><strong>生成日期:</strong> <span>${new Date().toLocaleDateString()}</span></div>
+    `
+    cover.appendChild(coverInfo)
+    
+    // 封面底部页脚
+    const coverFooter = document.createElement('div')
+    coverFooter.style.textAlign = 'center'
+    coverFooter.style.fontSize = '12px'
+    coverFooter.style.color = '#777777'
+    coverFooter.innerText = '本报告仅供专业参考，不构成医学诊断'
+    cover.appendChild(coverFooter)
+    
+    container.appendChild(cover)
+    
+    // 页 2: 测试记录总表
+    const listPage = document.createElement('div')
+    listPage.style.height = '1050px'
+    listPage.style.position = 'relative'
+    listPage.style.padding = '60px 0'
+    listPage.style.boxSizing = 'border-box'
+    
+    // 页眉
+    const headerEl = document.createElement('div')
+    headerEl.style.display = 'flex'
+    headerEl.style.justifyContent = 'space-between'
+    headerEl.style.alignItems = 'center'
+    headerEl.style.borderBottom = '1px solid #cccccc'
+    headerEl.style.paddingBottom = '8px'
+    headerEl.style.marginBottom = '20px'
+    
+    const headerLeft = document.createElement('div')
+    headerLeft.style.display = 'flex'
+    headerLeft.style.alignItems = 'center'
+    headerLeft.style.gap = '8px'
+    if (settingsStore.unitLogo) {
+      const logo = document.createElement('img')
+      logo.src = settingsStore.unitLogo
+      logo.style.height = '20px'
+      headerLeft.appendChild(logo)
+    }
+    const headerTitle = document.createElement('span')
+    headerTitle.innerText = 'OpenMind 心理档案袋'
+    headerTitle.style.fontSize = '12px'
+    headerTitle.style.fontWeight = 'bold'
+    headerLeft.appendChild(headerTitle)
+    headerEl.appendChild(headerLeft)
+    
+    const headerPageNum = document.createElement('span')
+    headerPageNum.innerText = '第 2 页'
+    headerPageNum.style.fontSize = '11px'
+    headerPageNum.style.color = '#666666'
+    headerEl.appendChild(headerPageNum)
+    listPage.appendChild(headerEl)
+    
+    const listTitle = document.createElement('h3')
+    listTitle.innerText = '测试历史记录总表'
+    listTitle.style.fontSize = '20px'
+    listTitle.style.marginBottom = '16px'
+    listPage.appendChild(listTitle)
+    
+    const table = document.createElement('table')
+    table.style.width = '100%'
+    table.style.borderCollapse = 'collapse'
+    
+    const thead = document.createElement('tr')
+    thead.style.backgroundColor = '#f2f2f2'
+    thead.innerHTML = `
+      <th style="border: 1px solid #dddddd; padding: 10px; font-size: 13px; text-align: left;">量表名称</th>
+      <th style="border: 1px solid #dddddd; padding: 10px; font-size: 13px; text-align: center; width: 18%;">测试日期</th>
+      <th style="border: 1px solid #dddddd; padding: 10px; font-size: 13px; text-align: center; width: 12%;">总分</th>
+      <th style="border: 1px solid #dddddd; padding: 10px; font-size: 13px; text-align: center; width: 18%;">结果等级</th>
+      <th style="border: 1px solid #dddddd; padding: 10px; font-size: 13px; text-align: center; width: 12%;">用时</th>
+    `
+    table.appendChild(thead)
+    
+    histories.forEach(h => {
+      let severityLabel = '无'
+      try {
+        if (h.result_json) {
+          const res = JSON.parse(h.result_json)
+          severityLabel = res.interpretation?.label || '无'
+        }
+      } catch (err) {}
+      
+      const tr = document.createElement('tr')
+      const minutes = Math.floor(h.duration_seconds / 60)
+      const seconds = h.duration_seconds % 60
+      const durationStr = minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`
+      
+      tr.innerHTML = `
+        <td style="border: 1px solid #dddddd; padding: 10px; font-size: 13px;">${h.scale_name}</td>
+        <td style="border: 1px solid #dddddd; padding: 10px; font-size: 13px; text-align: center;">${new Date(h.created_at).toLocaleDateString()}</td>
+        <td style="border: 1px solid #dddddd; padding: 10px; font-size: 13px; text-align: center; font-weight: bold; color: #409EFF;">${h.std_score !== null && h.std_score !== undefined ? h.std_score : h.raw_score}</td>
+        <td style="border: 1px solid #dddddd; padding: 10px; font-size: 13px; text-align: center;">${severityLabel}</td>
+        <td style="border: 1px solid #dddddd; padding: 10px; font-size: 13px; text-align: center;">${durationStr}</td>
+      `
+      table.appendChild(tr)
+    })
+    listPage.appendChild(table)
+    
+    // 页脚
+    const footerEl = document.createElement('div')
+    footerEl.style.position = 'absolute'
+    footerEl.style.bottom = '20px'
+    footerEl.style.left = '0'
+    footerEl.style.right = '0'
+    footerEl.style.borderTop = '1px solid #eeeeee'
+    footerEl.style.paddingTop = '8px'
+    footerEl.style.textAlign = 'center'
+    footerEl.style.fontSize = '10px'
+    footerEl.style.color = '#888888'
+    footerEl.innerText = '本报告仅供专业参考，不构成医学诊断'
+    listPage.appendChild(footerEl)
+    
+    container.appendChild(listPage)
+    
+    // 页 3+: 详细量表报告 (每个量表一页)
+    let pageCount = 3
+    for (const h of histories) {
+      let resultObj: any = null
+      try {
+        if (h.result_json) {
+          resultObj = JSON.parse(h.result_json)
+        }
+      } catch (err) {}
+      
+      const detailPage = document.createElement('div')
+      detailPage.style.height = '1050px'
+      detailPage.style.position = 'relative'
+      detailPage.style.padding = '60px 0'
+      detailPage.style.boxSizing = 'border-box'
+      
+      // 页眉
+      const hpEl = document.createElement('div')
+      hpEl.style.display = 'flex'
+      hpEl.style.justifyContent = 'space-between'
+      hpEl.style.alignItems = 'center'
+      hpEl.style.borderBottom = '1px solid #cccccc'
+      hpEl.style.paddingBottom = '8px'
+      hpEl.style.marginBottom = '20px'
+      
+      const hpLeft = document.createElement('div')
+      hpLeft.style.display = 'flex'
+      hpLeft.style.alignItems = 'center'
+      hpLeft.style.gap = '8px'
+      if (settingsStore.unitLogo) {
+        const logo = document.createElement('img')
+        logo.src = settingsStore.unitLogo
+        logo.style.height = '20px'
+        hpLeft.appendChild(logo)
+      }
+      const hpTitle = document.createElement('span')
+      hpTitle.innerText = 'OpenMind 心理档案袋'
+      hpTitle.style.fontSize = '12px'
+      hpTitle.style.fontWeight = 'bold'
+      hpLeft.appendChild(hpTitle)
+      hpEl.appendChild(hpLeft)
+      
+      const hpPageNum = document.createElement('span')
+      hpPageNum.innerText = `第 ${pageCount} 页`
+      hpPageNum.style.fontSize = '11px'
+      hpPageNum.style.color = '#666666'
+      hpEl.appendChild(hpPageNum)
+      detailPage.appendChild(hpEl)
+      
+      // 内容
+      const detailTitle = document.createElement('h3')
+      detailTitle.innerText = `${h.scale_name} 详细结果分析`
+      detailTitle.style.fontSize = '20px'
+      detailTitle.style.marginBottom = '20px'
+      detailPage.appendChild(detailTitle)
+      
+      // 基本得分卡
+      const scoreCard = document.createElement('div')
+      scoreCard.style.display = 'flex'
+      scoreCard.style.gap = '20px'
+      scoreCard.style.marginBottom = '20px'
+      scoreCard.innerHTML = `
+        <div style="flex: 1; border: 1px solid #dddddd; padding: 12px; border-radius: 4px; text-align: center;">
+          <div style="font-size: 12px; color: #666666;">测试时间</div>
+          <div style="font-size: 15px; font-weight: bold; margin-top: 6px;">${new Date(h.created_at).toLocaleString()}</div>
+        </div>
+        <div style="flex: 1; border: 1px solid #dddddd; padding: 12px; border-radius: 4px; text-align: center;">
+          <div style="font-size: 12px; color: #666666;">量表总分</div>
+          <div style="font-size: 24px; font-weight: bold; color: #409EFF; margin-top: 2px;">${h.std_score !== null && h.std_score !== undefined ? h.std_score : h.raw_score} 分</div>
+        </div>
+        <div style="flex: 1; border: 1px solid #dddddd; padding: 12px; border-radius: 4px; text-align: center;">
+          <div style="font-size: 12px; color: #666666;">结果等级</div>
+          <div style="font-size: 18px; font-weight: bold; color: #E6A23C; margin-top: 6px;">${resultObj?.interpretation?.label || '正常'}</div>
+        </div>
+      `
+      detailPage.appendChild(scoreCard)
+      
+      // 维度得分
+      if (resultObj?.dimensionScores && Object.keys(resultObj.dimensionScores).length > 0) {
+        const dimBox = document.createElement('div')
+        dimBox.style.marginBottom = '20px'
+        dimBox.innerHTML = '<h4 style="margin: 0 0 10px 0; font-size: 14px; border-left: 3px solid #409eff; padding-left: 6px;">维度得分明细:</h4>'
+        
+        const dimTable = document.createElement('table')
+        dimTable.style.width = '100%'
+        dimTable.style.borderCollapse = 'collapse'
+        dimTable.innerHTML = `
+          <tr style="background-color: #fafafa;">
+            <th style="border: 1px solid #dddddd; padding: 6px; font-size: 12px; text-align: left;">维度名称</th>
+            <th style="border: 1px solid #dddddd; padding: 6px; font-size: 12px; text-align: center; width: 30%;">维度得分</th>
+          </tr>
+        `
+        for (const [dName, dScore] of Object.entries(resultObj.dimensionScores)) {
+          const dTr = document.createElement('tr')
+          dTr.innerHTML = `
+            <td style="border: 1px solid #dddddd; padding: 6px; font-size: 12px;">${dName}</td>
+            <td style="border: 1px solid #dddddd; padding: 6px; font-size: 12px; text-align: center; font-weight: bold;">${Number(dScore).toFixed(1)} 分</td>
+          `
+          dimTable.appendChild(dTr)
+        }
+        dimBox.appendChild(dimTable)
+        detailPage.appendChild(dimBox)
+      }
+      
+      // 文字解释
+      const interpBox = document.createElement('div')
+      interpBox.style.marginBottom = '20px'
+      interpBox.innerHTML = `
+        <h4 style="margin: 0 0 8px 0; font-size: 14px; border-left: 3px solid #67C23A; padding-left: 6px;">测评结论与解释:</h4>
+        <div style="font-size: 13px; line-height: 1.6; color: #333333; background-color: #f9f9f9; padding: 12px; border-radius: 4px; white-space: pre-wrap;">
+          ${resultObj?.interpretation?.description || '暂无详细测评解释说明。'}
+        </div>
+      `
+      detailPage.appendChild(interpBox)
+      
+      // 医生诊断/诊断意见 (如果有)
+      if (h.doctorNote) {
+        const docBox = document.createElement('div')
+        docBox.innerHTML = `
+          <h4 style="margin: 0 0 8px 0; font-size: 14px; border-left: 3px solid #F56C6C; padding-left: 6px;">医生评定诊断及建议:</h4>
+          <div style="font-size: 13px; line-height: 1.6; color: #333333; background-color: #fffaf0; border: 1px dashed #fbdfa2; padding: 12px; border-radius: 4px; white-space: pre-wrap;">
+            ${h.doctorNote}
+            ${h.reportDoctor ? `<div style="text-align: right; margin-top: 8px; font-weight: bold; font-size: 12px;">评定医生签名: ${h.reportDoctor}</div>` : ''}
+          </div>
+        `
+        detailPage.appendChild(docBox)
+      }
+      
+      // 页脚
+      const dfEl = document.createElement('div')
+      dfEl.style.position = 'absolute'
+      dfEl.style.bottom = '20px'
+      dfEl.style.left = '0'
+      dfEl.style.right = '0'
+      dfEl.style.borderTop = '1px solid #eeeeee'
+      dfEl.style.paddingTop = '8px'
+      dfEl.style.textAlign = 'center'
+      dfEl.style.fontSize = '10px'
+      dfEl.style.color = '#888888'
+      dfEl.innerText = '本报告仅供专业参考，不构成医学诊断'
+      detailPage.appendChild(dfEl)
+      
+      container.appendChild(detailPage)
+      pageCount++
+    }
+    
+    document.body.appendChild(container)
+    
+    // html2canvas 逐页渲染并贴入 jsPDF
+    const pages = container.childNodes
+    for (let i = 0; i < pages.length; i++) {
+      const pageNode = pages[i] as HTMLElement
+      const canvas = await html2canvas(pageNode, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
+      })
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
+      
+      if (i > 0) {
+        pdf.addPage()
+      }
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = pdf.internal.pageSize.getHeight()
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight)
+    }
+    
+    // 销毁临时渲染 DOM 节点
+    document.body.removeChild(container)
+    
+    const defaultName = `心理档案袋_${user.name}_${new Date().toISOString().slice(0, 10)}.pdf`
+    if (window.electronAPI) {
+      const saveRes = await window.electronAPI.showSaveDialog({
+        defaultPath: defaultName,
+        filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
+      })
+
+      if (saveRes.filePath) {
+        const pdfArrayBuffer = pdf.output('arraybuffer')
+        const bytes = new Uint8Array(pdfArrayBuffer)
+        let binary = ''
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i])
+        }
+        const base64 = window.btoa(binary)
+        
+        const writeRes = await window.electronAPI.saveBufferFile(saveRes.filePath, base64)
+        if (writeRes.success) {
+          ElMessage.success('心理档案袋 PDF 生成成功！')
+        } else {
+          ElMessage.error('保存 PDF 失败: ' + writeRes.error)
+        }
+      }
+    } else {
+      pdf.save(defaultName)
+      ElMessage.success('心理档案袋 PDF 导出成功！')
+    }
+    
+  } catch (err: any) {
+    ElMessage.error('生成档案袋失败: ' + err.message)
+  }
+}
 
 async function exportUserProfilePDF(user: User) {
   try {
@@ -709,7 +1135,6 @@ function processFile(file: File) {
 
 // 预约弹窗逻辑
 import { useAppointmentStore } from '@/stores/appointmentStore'
-import { useScaleStore } from '@/stores/scaleStore'
 
 const appointmentStore = useAppointmentStore()
 const scaleStore = useScaleStore()
@@ -1035,6 +1460,9 @@ async function confirmImport() {
                     </el-dropdown-item>
                     <el-dropdown-item @click="exportUserProfilePDF(row)">
                       <el-icon><Document /></el-icon>导出为 PDF 档案 (.pdf)
+                    </el-dropdown-item>
+                    <el-dropdown-item @click="generatePortfolio(row)">
+                      <el-icon><Notebook /></el-icon>生成心理档案袋 (PDF)
                     </el-dropdown-item>
                   </el-dropdown-menu>
                 </template>

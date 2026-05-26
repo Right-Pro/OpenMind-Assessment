@@ -811,14 +811,21 @@ onMounted(async () => {
     <!-- 水印遮罩 (打印版) -->
     <div v-if="settingsStore.watermarkText" :style="watermarkBgStyle"></div>
     <!-- 报告单位头部 -->
-    <div class="report-unit-header" style="text-align: center; margin-bottom: 12px;" v-if="settingsStore.unitName">
-      <div style="font-size: 22px; font-weight: bold; letter-spacing: 1px; color: #000000; line-height: 1.4;">
-        {{ settingsStore.unitName }}
+    <div class="report-unit-header" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px dashed #cccccc; padding-bottom: 8px;" v-if="settingsStore.unitLogo || settingsStore.unitName">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <img v-if="settingsStore.unitLogo" :src="settingsStore.unitLogo" alt="Unit Logo" style="height: 30px; width: auto; object-fit: contain;" />
+        <div style="text-align: left;">
+          <div style="font-size: 18px; font-weight: bold; letter-spacing: 1px; color: #000000; line-height: 1.2;">
+            {{ settingsStore.unitName || 'OpenMind 心理测评' }}
+          </div>
+          <div style="font-size: 10px; color: #666666; margin-top: 2px;" v-if="settingsStore.unitDesc">
+            {{ settingsStore.unitDesc }}
+          </div>
+        </div>
       </div>
-      <div style="font-size: 11px; color: #666666; margin-top: 2px;" v-if="settingsStore.unitDesc">
-        {{ settingsStore.unitDesc }}
+      <div style="font-size: 11px; color: #909399; font-style: italic;">
+        OpenMind 心理测评系统
       </div>
-      <div style="border-bottom: 1px dashed #cccccc; margin-top: 8px; margin-bottom: 4px;"></div>
     </div>
     
     <div class="report-title">{{ scale.id }} {{ scale.name }} 结果分析报告</div>

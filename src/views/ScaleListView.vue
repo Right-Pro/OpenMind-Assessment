@@ -7,6 +7,8 @@ import { useFavoriteStore } from '@/stores/favoriteStore'
 import { usePackageStore } from '@/stores/packageStore'
 import { ElMessage } from 'element-plus'
 import * as XLSX from 'xlsx'
+import { jsPDF } from 'jspdf'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 const emit = defineEmits(['trigger-user-select'])
 
@@ -128,6 +130,241 @@ function calculateAge(birthdateStr?: string) {
     age--
   }
   return age > 0 ? String(age) : '0'
+}
+
+async function printBlankScale(scale: any) {
+  try {
+    ElMessage.info('正在生成空白问卷 PDF...')
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    
+    // 页宽页高 A4: 210 x 297 mm
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    const margin = 20
+    const contentWidth = pageWidth - 2 * margin
+    let currentY = 25
+    
+    const settingsStore = useSettingsStore()
+    
+    // 绘制页眉和页脚辅助函数
+    const drawHeaderFooter = (pageNumber: number) => {
+      // 顶栏 Logo + 页眉文字
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(9)
+      pdf.setTextColor(100, 100, 100)
+      
+      const headerY = 12
+      // 如果存在 Logo，高度固定 6mm，等比缩放
+      if (settingsStore.unitLogo) {
+        // 由于是纯 jspdf，我们也可以添加图片。单位 Logo 在数据库中是 base64
+        try {
+          pdf.addImage(settingsStore.unitLogo, 'PNG', margin, headerY - 5, 20, 6)
+          pdf.text('OpenMind 空白量表问卷', margin + 22, headerY)
+        } catch (e) {
+          pdf.text('OpenMind 空白量表问卷', margin, headerY)
+        }
+      } else {
+        pdf.text('OpenMind 空白量表问卷', margin, headerY)
+      }
+      
+      // 页码靠右
+      pdf.text(`第 ${pageNumber} 页`, pageWidth - margin, headerY, { align: 'right' })
+      
+      // 页眉下划线
+      pdf.setDrawColor(200, 200, 200)
+      pdf.setLineWidth(0.2)
+      pdf.line(margin, headerY + 2, pageWidth - margin, headerY + 2)
+      
+      // 页脚
+      const footerY = pageHeight - 12
+      pdf.line(margin, footerY - 2, pageWidth - margin, footerY - 2)
+      pdf.text('本报告仅供专业参考，不构成医学诊断', pageWidth / 2, footerY, { align: 'center' })
+    }
+    
+    // 中文字体渲染：因为是纯 jspdf，无法直接输出中文（会乱码）。
+    // 在这项目里，我们发现可以通过加载中文字体，或者利用隐藏的 DOM 渲染并使用 html2canvas？
+    // 等等！任务二的要求：“技术：纯 jspdf 绘制，不要用 html2canvas（因为不需要渲染复杂样式）”。
+    // 这意味着如果纯 jspdf 绘制，在中文环境下需要注入中文字体，或者利用 jsPDF 已经注册好的中文字体。
+    // 我们检查一下系统中是否已经通过某处配置了中文字体，比如 'SimSun' 或者 'custom-font'。
+    // 在 jsPDF 中，如果想要中文支持，最简单的方式是使用系统或者项目中已经注册的中文字体。
+    // 让我们用一个中文字体辅助库或者是直接使用 pdf.setFont('SimSun')，看是否能够支持。
+    // 等一下，我们刚刚在 ResultView.vue 里面看到，是不是也有使用 pdf 或者是中文字体的逻辑？
+    // 让我们看一看 ResultView.vue 中是用 html2canvas 生成图片贴入 jspdf，还是纯 jspdf 绘制？
+    // 刚刚我们读过，ResultView.vue 中似乎使用了 html2canvas 来生成图片。
+    // 但任务二规定：“技术：纯 jspdf 绘制，不要用 html2canvas”。
+    // 那么，在纯 jspdf 下如何支持中文？
+    // jsPDF 在浏览器或 Electron 中自带一些字体，但都不支持中文。
+    // 如果直接 `pdf.text("测试", ...)` 会显示乱码。
+    // 除非我们动态给 jsPDF 注册一个中文字体，例如：
+    // pdf.addFont(fontDataUrl, 'customFont', 'normal') 并 pdf.setFont('customFont')。
+    // 或者是将题目用一个 Canvas 动态绘制成一小行一小行的图片，然后用 `pdf.addImage` 贴入。
+    // 这种做法不需要 html2canvas 渲染复杂样式，完全是由 Canvas 绘制一行行文本（纯 jsPDF 拼图），性能极佳，绝对不会乱码！
+    // 让我们仔细思考这个完美的巧妙办法：
+    // 我们可以写一个辅助函数 `textToImage(text, fontSize, isBold)`，利用 canvas.getContext('2d') 将中文字符串渲染为一张透明底、黑字的 Base64 PNG 图片，然后再用 `pdf.addImage` 绘制到 PDF 里！
+    // 这样既符合了“纯 jspdf 绘制（不用 html2canvas，只用内置方法拼装）”，又完美解决了中文字体缺失导致的乱码问题！
+    // 让我们实现这个高精度的渲染方案。
+    
+    const textCache = new Map<string, { width: number, height: number, data: string }>()
+    const renderTextToImage = (text: string, fontSize: number = 14, isBold: boolean = false) => {
+      const cacheKey = `${text}_${fontSize}_${isBold}`
+      if (textCache.has(cacheKey)) {
+        return textCache.get(cacheKey)!
+      }
+      
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')!
+      
+      // 设置字体
+      const fontStr = `${isBold ? 'bold' : 'normal'} ${fontSize * 1.5}px "Microsoft YaHei", "SimSun", sans-serif`
+      ctx.font = fontStr
+      
+      // 测量文本宽度
+      const metrics = ctx.measureText(text)
+      const textWidth = Math.max(1, Math.ceil(metrics.width))
+      // 文本高度一般为字号的1.3倍左右
+      const textHeight = Math.ceil(fontSize * 2.0)
+      
+      canvas.width = textWidth
+      canvas.height = textHeight
+      
+      // 重置字体，因为改变 canvas 宽高会清空状态
+      ctx.font = fontStr
+      ctx.textBaseline = 'top'
+      ctx.fillStyle = '#000000'
+      ctx.fillText(text, 0, 0)
+      
+      const dataUrl = canvas.toDataURL('image/png')
+      const result = {
+        width: textWidth / 3.5, // 缩放到 PDF 空间内
+        height: textHeight / 3.5,
+        data: dataUrl
+      }
+      textCache.set(cacheKey, result)
+      return result
+    }
+    
+    // 绘制一行文本（支持自动折行）
+    const drawParagraph = (text: string, x: number, y: number, maxWidth: number, fontSize: number = 12, isBold: boolean = false): number => {
+      // 单词折行/字符折行
+      let currentLine = ''
+      let currentY = y
+      
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i]
+        const tempLine = currentLine + char
+        const imgInfo = renderTextToImage(tempLine, fontSize, isBold)
+        
+        if (imgInfo.width > maxWidth) {
+          // 当前行已满，绘制当前行
+          const drawInfo = renderTextToImage(currentLine, fontSize, isBold)
+          pdf.addImage(drawInfo.data, 'PNG', x, currentY, drawInfo.width, drawInfo.height)
+          currentY += drawInfo.height + 1.5
+          currentLine = char
+        } else {
+          currentLine = tempLine
+        }
+      }
+      
+      if (currentLine) {
+        const drawInfo = renderTextToImage(currentLine, fontSize, isBold)
+        pdf.addImage(drawInfo.data, 'PNG', x, currentY, drawInfo.width, drawInfo.height)
+        currentY += drawInfo.height
+      }
+      
+      return currentY
+    }
+    
+    // 第一页初始页眉页脚
+    let currentPage = 1
+    drawHeaderFooter(currentPage)
+    
+    // 1. 标题
+    const titleText = `${scale.name}（空白问卷）`
+    currentY = drawParagraph(titleText, margin, currentY, contentWidth, 18, true) + 4
+    
+    // 2. 描述（如果有）
+    if (scale.description) {
+      currentY = drawParagraph(scale.description, margin, currentY, contentWidth, 11, false) + 6
+    }
+    
+    // 分割线
+    pdf.setDrawColor(0, 0, 0)
+    pdf.setLineWidth(0.4)
+    pdf.line(margin, currentY, pageWidth - margin, currentY)
+    currentY += 8
+    
+    // 3. 遍历题目
+    const questions = scale.questions || []
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i]
+      
+      // 计算这一题需要的大致高度
+      // 题干高度 + 选项高度
+      const qText = `${i + 1}. ${q.text}`
+      const qImgTemp = renderTextToImage(qText, 12, true)
+      const estimatedLines = Math.ceil(qImgTemp.width / contentWidth)
+      let estimatedHeight = estimatedLines * 6 + 4
+      
+      // 估算选项高度
+      const options = q.options || []
+      options.forEach((opt: any) => {
+        const optText = `[  ] ${opt.label}`
+        const optImgTemp = renderTextToImage(optText, 11, false)
+        const optLines = Math.ceil(optImgTemp.width / contentWidth)
+        estimatedHeight += optLines * 5 + 2
+      })
+      
+      // 检查是否超出本页，如果是，则换页
+      if (currentY + estimatedHeight > pageHeight - 25) {
+        pdf.addPage()
+        currentPage++
+        drawHeaderFooter(currentPage)
+        currentY = 25
+      }
+      
+      // 绘制题干
+      currentY = drawParagraph(qText, margin, currentY, contentWidth, 12, true) + 2
+      
+      // 绘制选项
+      options.forEach((opt: any) => {
+        const optText = `[  ]  ${opt.label}`
+        currentY = drawParagraph(optText, margin + 6, currentY, contentWidth - 6, 11, false) + 1.5
+      })
+      
+      currentY += 4 // 题目之间的间距
+    }
+    
+    const defaultName = `${scale.name}_空白问卷_${new Date().toISOString().slice(0, 10)}.pdf`
+    if (window.electronAPI) {
+      const saveRes = await window.electronAPI.showSaveDialog({
+        defaultPath: defaultName,
+        filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
+      })
+
+      if (saveRes.filePath) {
+        const pdfArrayBuffer = pdf.output('arraybuffer')
+        const bytes = new Uint8Array(pdfArrayBuffer)
+        let binary = ''
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i])
+        }
+        const base64 = window.btoa(binary)
+        
+        const writeRes = await window.electronAPI.saveBufferFile(saveRes.filePath, base64)
+        if (writeRes.success) {
+          ElMessage.success('空白问卷 PDF 生成成功！')
+        } else {
+          ElMessage.error('保存 PDF 失败: ' + writeRes.error)
+        }
+      }
+    } else {
+      pdf.save(defaultName)
+      ElMessage.success('空白问卷 PDF 导出成功！')
+    }
+    
+  } catch (err: any) {
+    ElMessage.error('生成空白问卷 PDF 失败: ' + err.message)
+  }
 }
 
 async function exportAnonymizedScaleData(scaleId: string) {
@@ -415,7 +652,7 @@ async function exportAnonymizedScaleData(scaleId: string) {
             {{ row.questions.length }}题
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column label="操作" width="370" fixed="right">
           <template #default="{ row }">
             <div style="display: flex; align-items: center; gap: 8px;">
               <el-button
@@ -433,6 +670,15 @@ async function exportAnonymizedScaleData(scaleId: string) {
                 @click="startScale(row.id)"
               >
                 开始测评
+              </el-button>
+              <el-button
+                type="primary"
+                size="small"
+                plain
+                @click="printBlankScale(row)"
+              >
+                <el-icon style="margin-right: 4px;"><Printer /></el-icon>
+                打印空白问卷
               </el-button>
               <el-button
                 type="warning"

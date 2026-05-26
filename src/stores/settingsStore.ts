@@ -2,6 +2,16 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export const useSettingsStore = defineStore('settings', () => {
+  const unitLogo = ref(
+    (() => {
+      try {
+        return localStorage.getItem('settings_unitLogo') || ''
+      } catch (e) {
+        return ''
+      }
+    })()
+  )
+
   const darkMode = ref(
     (() => {
       try {
@@ -112,13 +122,13 @@ export const useSettingsStore = defineStore('settings', () => {
         const rows = result as any[]
         for (const row of rows) {
           switch (row.key) {
+            case 'unitLogo':
+              unitLogo.value = row.value
+              localStorage.setItem('settings_unitLogo', unitLogo.value)
+              break
             case 'darkMode':
               darkMode.value = row.value === 'true'
               localStorage.setItem('settings_darkMode', String(darkMode.value))
-              break
-            case 'fontSize':
-              fontSize.value = row.value as any
-              localStorage.setItem('settings_fontSize', fontSize.value)
               break
             case 'showQuestionNumber':
               showQuestionNumber.value = row.value === 'true'
@@ -221,6 +231,16 @@ export const useSettingsStore = defineStore('settings', () => {
     await saveSetting('watermarkText', val)
   }
 
+  async function setUnitLogo(val: string) {
+    unitLogo.value = val
+    await saveSetting('unitLogo', val)
+  }
+
+  async function deleteUnitLogo() {
+    unitLogo.value = ''
+    await saveSetting('unitLogo', '')
+  }
+
   const fontSizeClass = () => {
     const map: Record<string, string> = {
       small: 'fs-small',
@@ -242,6 +262,7 @@ export const useSettingsStore = defineStore('settings', () => {
     seniorTtsThreshold,
     testPageBg,
     watermarkText,
+    unitLogo,
     init,
     setDarkMode,
     setFontSize,
@@ -252,6 +273,8 @@ export const useSettingsStore = defineStore('settings', () => {
     setSeniorTtsThreshold,
     setTestPageBg,
     setWatermarkText,
+    setUnitLogo,
+    deleteUnitLogo,
     fontSizeClass
   }
 })

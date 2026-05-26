@@ -362,6 +362,48 @@ async function saveUnitInfo() {
   ElMessage.success('单位信息已保存')
 }
 
+async function handleLogoChange(file: any) {
+  const rawFile = file.raw || file
+  if (!rawFile) return
+
+  // 限制图片格式为 png, jpg, jpeg
+  const isValidFormat = ['image/png', 'image/jpeg', 'image/jpg'].includes(rawFile.type)
+  if (!isValidFormat) {
+    ElMessage.error('图片只能是 PNG 或 JPG/JPEG 格式!')
+    return
+  }
+
+  // 限制图片大小 <= 500KB
+  const isLt500K = rawFile.size / 1024 < 500
+  if (!isLt500K) {
+    ElMessage.error('图片大小不能超过 500KB!')
+    return
+  }
+
+  const reader = new FileReader()
+  reader.readAsDataURL(rawFile)
+  reader.onload = async () => {
+    const base64Str = reader.result as string
+    await settingsStore.setUnitLogo(base64Str)
+    ElMessage.success('单位 Logo 上传成功')
+  }
+  reader.onerror = () => {
+    ElMessage.error('读取图片失败')
+  }
+}
+
+async function handleDeleteLogo() {
+  try {
+    await ElMessageBox.confirm('确定要删除单位 Logo 吗？', '删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await settingsStore.deleteUnitLogo()
+    ElMessage.success('Logo 已删除')
+  } catch {}
+}
+
 async function backupDatabase() {
   const result = await window.electronAPI.dbBackup()
   if (result.success) {
@@ -729,6 +771,29 @@ function goBack() {
           </el-form-item>
           <el-form-item label="单位简介">
             <el-input v-model="unitForm.desc" :disabled="authStore.currentOperator?.role !== 'admin'" type="textarea" rows="2" placeholder="简短介绍，显示在报告页眉" />
+          </el-form-item>
+          <el-form-item label="单位 Logo" v-if="authStore.currentOperator?.role === 'admin'">
+            <div style="display: flex; align-items: center; gap: 16px;">
+              <el-upload
+                action=""
+                :auto-upload="false"
+                :show-file-list="false"
+                :on-change="handleLogoChange"
+                accept=".png,.jpg,.jpeg"
+              >
+                <el-button type="primary" size="small">上传 Logo</el-button>
+              </el-upload>
+              <div v-if="settingsStore.unitLogo" style="display: flex; align-items: center; gap: 12px;">
+                <img :src="settingsStore.unitLogo" alt="Logo 预览" style="max-height: 40px; max-width: 150px; border: 1px solid var(--el-border-color); padding: 2px;" />
+                <el-button type="danger" size="small" @click="handleDeleteLogo">删除</el-button>
+              </div>
+              <div v-else style="font-size: 12px; color: #909399;">
+                未上传，将显示默认文字页眉
+              </div>
+            </div>
+            <div style="font-size: 11px; color: #909399; margin-top: 4px; line-height: 1.4;">
+              仅支持 PNG/JPG 格式，大小不超过 500KB，建议尺寸 200x60px（页眉左侧显示用）
+            </div>
           </el-form-item>
           <el-form-item v-if="authStore.currentOperator?.role === 'admin'">
             <el-button type="primary" @click="saveUnitInfo">保存</el-button>
