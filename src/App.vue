@@ -15,6 +15,40 @@ const authStore = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 
+// 窗口控制相关的状态
+const isMaximized = ref(false)
+
+const checkMaximizedState = async () => {
+  if (window.electronAPI && typeof window.electronAPI.windowIsMaximized === 'function') {
+    isMaximized.value = await window.electronAPI.windowIsMaximized()
+  }
+}
+
+const handleMinimize = () => {
+  if (window.electronAPI && typeof window.electronAPI.windowMinimize === 'function') {
+    window.electronAPI.windowMinimize()
+  }
+}
+
+const handleMaximize = async () => {
+  if (window.electronAPI && typeof window.electronAPI.windowMaximize === 'function') {
+    await window.electronAPI.windowMaximize()
+    await checkMaximizedState()
+  }
+}
+
+const handleClose = () => {
+  if (window.electronAPI && typeof window.electronAPI.windowClose === 'function') {
+    window.electronAPI.windowClose()
+  }
+}
+
+const handleDoubleClick = () => {
+  handleMaximize()
+}
+
+let resizeInterval: any = null
+
 // 操作员登录注册状态
 const showLogin = ref(false)
 const showFirstRegister = ref(false)
@@ -93,6 +127,11 @@ onMounted(async () => {
     // 2. 如果隐私已同意，但无当前用户，显示选择/创建用户对话框
     checkUserSession()
   }
+
+  // 监听窗口最大化状态
+  checkMaximizedState()
+  resizeInterval = setInterval(checkMaximizedState, 500)
+  window.addEventListener('resize', checkMaximizedState)
 })
 
 import { onBeforeUnmount } from 'vue'
@@ -100,6 +139,10 @@ onBeforeUnmount(() => {
   if (unsubscribeNavigate) {
     unsubscribeNavigate()
   }
+  if (resizeInterval) {
+    clearInterval(resizeInterval)
+  }
+  window.removeEventListener('resize', checkMaximizedState)
 })
 
 function checkUserSession() {
@@ -292,11 +335,63 @@ watch(
   <div class="app-wrapper" :class="[settingsStore.fontSizeClass(), { dark: settingsStore.darkMode }]">
     <!-- Fluent Design Sidebar Layout Shell -->
     <div class="fluent-layout" :class="{ 'full-screen-layout': currentPath.startsWith('/test/') }">
+      
+      <!-- 答题页面全屏下，顶部提供一个极其紧凑的窗口控制条，以免没有关闭/最小化按钮 -->
+      <div v-if="currentPath.startsWith('/test/')" class="答题页控制条 no-print">
+        <div class="drag-handle" @dblclick="handleDoubleClick"></div>
+        <div class="window-control-buttons">
+          <button class="win-btn" title="最小化" @click="handleMinimize">
+            <svg viewBox="0 0 1024 1024" width="10" height="10">
+              <path d="M128 512h768v85.333H128z" fill="currentColor" />
+            </svg>
+          </button>
+          <button class="win-btn" :title="isMaximized ? '向下还原' : '最大化'" @click="handleMaximize">
+            <svg v-if="isMaximized" viewBox="0 0 1024 1024" width="10" height="10">
+              <path d="M341.333 170.667h512v512h-170.667v-85.333h85.333v-341.333h-341.333v85.333h-85.333z" fill="currentColor" />
+              <path d="M170.667 341.333h512v512h-512z M256 426.667h341.333v341.333H256z" fill="currentColor" fill-rule="evenodd" />
+            </svg>
+            <svg v-else viewBox="0 0 1024 1024" width="10" height="10">
+              <path d="M170.667 170.667h682.666v682.666H170.667zM256 256v512h512V256z" fill="currentColor" />
+            </svg>
+          </button>
+          <button class="win-btn win-close-btn" title="关闭" @click="handleClose">
+            <svg viewBox="0 0 1024 1024" width="10" height="10">
+              <path d="M571.733 512l275.2-275.2c16.427-16.427 16.427-43.093 0-59.733s-43.093-16.427-59.733 0L512 452.267l-275.2-275.2c-16.427-16.427-43.093-16.427-59.733 0s-16.427 43.093 0 59.733L452.267 512l-275.2 275.2c-16.427 16.427-16.427 43.093 0 59.733a42.112 42.112 0 0 0 29.867 12.373c10.88 0 21.76-4.053 29.867-12.373L512 571.733l275.2 275.2c8.107 8.32 18.987 12.373 29.867 12.373s21.76-4.053 29.867-12.373c16.427-16.427 16.427-43.093 0-59.733L571.733 512z" fill="currentColor" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <!-- Left Sidebar (Windows Settings Style) -->
       <aside v-if="!currentPath.startsWith('/test/')" class="fluent-sidebar no-print">
-        <div class="fluent-sidebar-header">
-          <el-icon size="24" color="var(--fluent-accent)"><FirstAidKit /></el-icon>
-          <span class="fluent-sidebar-logo">OpenMind</span>
+        <div class="fluent-sidebar-header" @dblclick="handleDoubleClick">
+          <div class="fluent-sidebar-header-left">
+            <el-icon size="24" color="var(--fluent-accent)"><FirstAidKit /></el-icon>
+            <span class="fluent-sidebar-logo">OpenMind</span>
+          </div>
+
+          <!-- 嵌入侧栏顶部的三个窗口控制按钮 -->
+          <div class="sidebar-window-actions">
+            <button class="win-btn" title="最小化" @click.stop="handleMinimize">
+              <svg viewBox="0 0 1024 1024" width="10" height="10">
+                <path d="M128 512h768v85.333H128z" fill="currentColor" />
+              </svg>
+            </button>
+            <button class="win-btn" :title="isMaximized ? '向下还原' : '最大化'" @click.stop="handleMaximize">
+              <svg v-if="isMaximized" viewBox="0 0 1024 1024" width="10" height="10">
+                <path d="M341.333 170.667h512v512h-170.667v-85.333h85.333v-341.333h-341.333v85.333h-85.333z" fill="currentColor" />
+                <path d="M170.667 341.333h512v512h-512z M256 426.667h341.333v341.333H256z" fill="currentColor" fill-rule="evenodd" />
+              </svg>
+              <svg v-else viewBox="0 0 1024 1024" width="10" height="10">
+                <path d="M170.667 170.667h682.666v682.666H170.667zM256 256v512h512V256z" fill="currentColor" />
+              </svg>
+            </button>
+            <button class="win-btn win-close-btn" title="关闭" @click.stop="handleClose">
+              <svg viewBox="0 0 1024 1024" width="10" height="10">
+                <path d="M571.733 512l275.2-275.2c16.427-16.427 16.427-43.093 0-59.733s-43.093-16.427-59.733 0L512 452.267l-275.2-275.2c-16.427-16.427-43.093-16.427-59.733 0s-16.427 43.093 0 59.733L452.267 512l-275.2 275.2c-16.427 16.427-16.427 43.093 0 59.733a42.112 42.112 0 0 0 29.867 12.373c10.88 0 21.76-4.053 29.867-12.373L512 571.733l275.2 275.2c8.107 8.32 18.987 12.373 29.867 12.373s21.76-4.053 29.867-12.373c16.427-16.427 16.427-43.093 0-59.733L571.733 512z" fill="currentColor" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <nav class="fluent-sidebar-menu">
@@ -384,6 +479,8 @@ watch(
 
       <!-- Right Content View Area -->
       <main class="fluent-content-container" :class="{ 'full-screen-content': currentPath.startsWith('/test/') }">
+        <!-- 非答题页面，且没有左侧栏全屏时，右侧内容顶部也提供拖拽句柄，提升多屏幕拖拽友好度 -->
+        <div v-if="!currentPath.startsWith('/test/')" class="right-content-drag-header no-print" @dblclick="handleDoubleClick"></div>
         <router-view v-slot="{ Component }">
           <component :is="Component" @trigger-user-select="triggerUserSelect" />
         </router-view>
@@ -543,10 +640,20 @@ watch(
 
 <style>
 .app-wrapper {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   background: var(--fluent-bg);
   color: var(--fluent-text-primary);
   transition: background 0.3s, color 0.3s;
+  overflow: hidden;
+}
+
+/* Let fluent-layout fill the full height of window as TitleBar is removed */
+.fluent-layout {
+  flex: 1;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* 答题页隐藏侧栏后的全屏布局逻辑与消除黑条 */
@@ -562,6 +669,105 @@ watch(
   margin: 0 !important;
   overflow: hidden !important;
   height: 100vh !important;
+}
+
+/* 答题页极简窗口控制条样式 */
+.答题页控制条 {
+  height: 30px;
+  width: 100%;
+  display: flex;
+  background: var(--fluent-bg);
+  border-bottom: 1px solid var(--fluent-card-border);
+  box-sizing: border-box;
+}
+
+.答题页控制条 .drag-handle {
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag;
+}
+
+.答题页控制条 .window-control-buttons {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+/* 顶部空白拖拽句柄（非答题页，右侧部分） */
+.right-content-drag-header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 260px;
+  height: 30px;
+  z-index: 9999;
+  -webkit-app-region: drag;
+  pointer-events: auto;
+}
+
+/* 左侧栏头部样式扩展 */
+.fluent-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 8px 12px 16px !important;
+  margin-bottom: 20px;
+  -webkit-app-region: drag;
+  user-select: none;
+  cursor: default;
+}
+
+.fluent-sidebar-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none; /* 让事件透传，不干扰拖拽 */
+}
+
+/* 嵌入式控制按钮样式 */
+.sidebar-window-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  -webkit-app-region: no-drag;
+}
+
+.win-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  outline: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fluent-text-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.win-btn:hover {
+  background-color: var(--fluent-subtle-fill-hover);
+}
+
+.win-btn:active {
+  background-color: var(--fluent-subtle-fill);
+}
+
+.win-close-btn:hover {
+  background-color: #e81123 !important;
+  color: #ffffff !important;
+}
+
+.win-close-btn:active {
+  background-color: #f1707a !important;
+  color: #ffffff !important;
+}
+
+/* 保证 dark 主题下按钮完美自适应 */
+:global(.dark) .win-btn {
+  color: #ffffff !important;
 }
 
 /* 打印优化 */
@@ -624,7 +830,7 @@ watch(
     page-break-inside: avoid;
   }
 
-  /* 展开原始数据 table 进行打印，避免滚动条和截断 */
+  /* 展开原始数据 table 进行打印，避免滚动条 and 截断 */
   .el-table {
     border: 1px solid #ddd !important;
     color: #000000 !important;

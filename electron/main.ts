@@ -546,6 +546,28 @@ function getPasswordHash(password: string): string {
   return crypto.createHash('sha256').update(password + HASH_SALT).digest('hex')
 }
 
+// 窗口管理 IPC 处理
+ipcMain.handle('window-minimize', () => {
+  mainWindow?.minimize()
+})
+
+ipcMain.handle('window-maximize', () => {
+  if (!mainWindow) return
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize()
+  } else {
+    mainWindow.maximize()
+  }
+})
+
+ipcMain.handle('window-close', () => {
+  mainWindow?.close()
+})
+
+ipcMain.handle('window-is-maximized', () => {
+  return mainWindow ? mainWindow.isMaximized() : false
+})
+
 // 操作员管理 IPC 处理
 ipcMain.handle('check-operators-empty', async () => {
   if (!db) return true
@@ -1363,7 +1385,8 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     show: false, // 配合 maximize 先隐藏以防闪烁
-    titleBarStyle: 'hiddenInset',
+    frame: false,
+    titleBarStyle: 'hidden',
     icon: path.join(__dirname, '../build/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -1383,18 +1406,27 @@ function createWindow() {
     // It can still be manually toggled via View > Toggle Developer Tools (Ctrl+Shift+I).
   }
 
-  // 确保 F12 和 Ctrl+Shift+I / Cmd+Option+I 开发者工具快捷键失效，且彻底禁用 DevTools 打开
+  // 确保 F12 和 Ctrl+Shift+I / Cmd+Option+I 开发者工具快捷键失效，且彻底禁用 DevTools 打开 (开发环境下 Ctrl+Shift+I 除外)
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const isCtrlShiftI = (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i'
     const isCmdOptionI = input.meta && input.alt && input.key.toLowerCase() === 'i'
+    
+    // 如果不是开发环境，或者不是 Ctrl+Shift+I/Cmd+Option+I 在开发模式下，阻止默认行为
+    if (!app.isPackaged && (isCtrlShiftI || isCmdOptionI)) {
+      // 允许在开发模式下通过 Ctrl+Shift+I 打开开发者工具
+      return
+    }
+
     if (input.key === 'F12' || isCtrlShiftI || isCmdOptionI) {
       event.preventDefault()
     }
   })
 
-  // 如果因其它方式打开开发者工具，则立即关闭
+  // 如果因其它方式打开开发者工具，在非开发模式下立即关闭
   mainWindow.webContents.on('devtools-opened', () => {
-    mainWindow?.webContents.closeDevTools()
+    if (app.isPackaged) {
+      mainWindow?.webContents.closeDevTools()
+    }
   })
 
   mainWindow.on('closed', () => {

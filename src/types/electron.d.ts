@@ -60,6 +60,11 @@ export interface ElectronAPI {
   getPackages: () => Promise<any[]>
   savePackage: (name: string, scaleIdsJson: string, id?: number) => Promise<{ success: boolean; id?: number; error?: string }>
   deletePackage: (id: number) => Promise<{ success: boolean; error?: string }>
+  // 窗口管理
+  windowMinimize: () => Promise<void>
+  windowMaximize: () => Promise<void>
+  windowClose: () => Promise<void>
+  windowIsMaximized: () => Promise<boolean>
 }
 
 declare global {

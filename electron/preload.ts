@@ -57,5 +57,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 测评套餐 API
   getPackages: () => ipcRenderer.invoke('get-packages'),
   savePackage: (name: string, scaleIdsJson: string, id?: number) => ipcRenderer.invoke('save-package', name, scaleIdsJson, id),
-  deletePackage: (id: number) => ipcRenderer.invoke('delete-package', id)
+  deletePackage: (id: number) => ipcRenderer.invoke('delete-package', id),
+  // 窗口管理
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window-maximize'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized')
 })
