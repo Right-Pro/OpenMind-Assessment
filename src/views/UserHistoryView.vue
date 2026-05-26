@@ -530,6 +530,10 @@ async function performScaleAllExport(scaleId: string) {
   }
 }
 
+// 对比图表和内容 DOM 引用
+const compareChartRef = ref<any>(null)
+const compareContentRef = ref<HTMLElement | null>(null)
+
 // 结果对比状态
 const compareDialogVisible = ref(false)
 const compareData = ref<{
@@ -543,6 +547,168 @@ const compareData = ref<{
   dimensions: { name: string; scoreA: number; scoreB: number; diff: number }[]
 } | null>(null)
 
+// 打印测评对比报告
+async function printCompareReport() {
+  if (!compareData.value) return
+
+  // 1. 获取并渲染图表 (Resize + 延迟 500ms)
+  if (compareChartRef.value) {
+    compareChartRef.value.resize()
+  }
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  let loadingInstance: any = null
+  let printContainer: HTMLElement | null = null
+  try {
+    // 2. 显示 Loading
+    loadingInstance = ElLoading.service({
+      text: '正在生成对比报告 PDF...',
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+
+    // 3. 弹出系统保存对话框
+    const defaultName = `${user.value?.name || '被试'}_测评对比报告_${new Date().toISOString().slice(0, 10)}.pdf`
+    const { canceled, filePath } = await window.electronAPI.showSaveDialog({
+      title: '保存测评对比报告',
+      defaultPath: defaultName,
+      filters: [{ name: 'PDF Document', extensions: ['pdf'] }]
+    })
+
+    if (canceled || !filePath) {
+      ElMessage.info('导出被取消')
+      return
+    }
+
+    // 4. 克隆到白底隐藏容器方案解决暗色模式截图卡死问题
+    const originalNode = compareContentRef.value
+    if (!originalNode) {
+      throw new Error('找不到要对比的内容节点')
+    }
+
+    // 4.1 创建临时隐藏容器，并设置白底
+    printContainer = document.createElement('div')
+    printContainer.id = 'print-container'
+    printContainer.style.position = 'absolute'
+    printContainer.style.left = '-9999px'
+    printContainer.style.top = '0'
+    printContainer.style.width = '800px' // 固定宽度方便截图
+    printContainer.style.backgroundColor = '#ffffff'
+    printContainer.style.color = '#000000'
+    printContainer.style.zIndex = '-9999'
+    document.body.appendChild(printContainer)
+
+    // 4.2 克隆对比页 DOM 到隐藏容器
+    const cloneNode = originalNode.cloneNode(true) as HTMLElement
+    // 强行展开滚动区域，避免被截断
+    cloneNode.style.maxHeight = 'none'
+    cloneNode.style.overflow = 'visible'
+    cloneNode.style.padding = '30px'
+    cloneNode.style.backgroundColor = '#ffffff'
+    cloneNode.style.color = '#000000'
+
+    // 4.3 递归强制设置所有文字颜色为 #000，背景为 #fff (内联样式覆盖)
+    const forceWhiteStyle = (el: HTMLElement) => {
+      // 排除 element-plus 的 tag 等可能需要颜色样式的元素，但背景文字强制设为安全的高对比度色
+      el.style.backgroundColor = '#ffffff'
+      el.style.color = '#000000'
+      el.style.setProperty('background-color', '#ffffff', 'important')
+      el.style.setProperty('color', '#000000', 'important')
+      
+      // 特殊处理 el-table 等边框及背景样式
+      if (el.classList.contains('el-table') || el.classList.contains('el-card')) {
+        el.style.border = '1px solid #ddd'
+      }
+      
+      // 遍历子节点
+      for (let i = 0; i < el.children.length; i++) {
+        forceWhiteStyle(el.children[i] as HTMLElement)
+      }
+    }
+    forceWhiteStyle(cloneNode)
+
+    // 4.4 针对 Canvas 进行特别克隆 (把 ECharts Canvas 替换为静态 img)
+    const originalCanvas = originalNode.querySelector('canvas') as HTMLCanvasElement
+    if (originalCanvas) {
+      const imgData = originalCanvas.toDataURL('image/png')
+      const img = document.createElement('img')
+      img.src = imgData
+      img.style.width = '100%'
+      img.style.height = 'auto'
+      img.style.display = 'block'
+      
+      const cloneChartWrapper = cloneNode.querySelector('.compare-chart-wrapper') as HTMLElement
+      if (cloneChartWrapper) {
+        cloneChartWrapper.innerHTML = ''
+        cloneChartWrapper.appendChild(img)
+      }
+    }
+
+    // 挂载克隆节点
+    printContainer.appendChild(cloneNode)
+
+    // 4.5 对克隆后的 DOM 调用 html2canvas
+    const canvas = await html2canvas(cloneNode, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    })
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.9)
+    
+    // 5. 生成 PDF 并保存
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const pdfWidth = pdf.internal.pageSize.getWidth()
+    // 自动计算高度以自适应
+    const imgWidth = 210 // A4 宽 210mm
+    const imgHeight = (canvas.height * imgWidth) / canvas.width
+    
+    // 如果图片超出单页，就分页
+    let heightLeft = imgHeight
+    let position = 0
+    
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
+    heightLeft -= pdf.internal.pageSize.getHeight()
+    
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight
+      pdf.addPage()
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pdf.internal.pageSize.getHeight()
+    }
+
+    const pdfArrayBuffer = pdf.output('arraybuffer')
+    const bytes = new Uint8Array(pdfArrayBuffer)
+    let binary = ''
+    const len = bytes.byteLength
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i])
+    }
+    const base64Data = window.btoa(binary)
+    const saveRes = await window.electronAPI.saveBufferFile(filePath, base64Data)
+    
+    if (saveRes.success) {
+      ElMessage.success('测评对比 PDF 报告生成成功！')
+    } else {
+      throw new Error(saveRes.error || '保存文件失败')
+    }
+
+    // 显式释放 Canvas 内存
+    canvas.width = 0
+    canvas.height = 0
+  } catch (err: any) {
+    console.error(err)
+    ElMessage.error('生成 PDF 失败: ' + err.message)
+  } finally {
+    // 销毁克隆节点与临时容器
+    if (printContainer && printContainer.parentNode) {
+      printContainer.parentNode.removeChild(printContainer)
+    }
+    if (loadingInstance) {
+      loadingInstance.close()
+    }
+  }
+}
 
 // 测评对比触发
 function compareTests() {
@@ -1346,7 +1512,7 @@ async function saveAppointment() {
         <span style="font-size: 16px; font-weight: bold;">测评结果对比</span>
       </div>
     </template>
-    <div v-if="compareData" style="max-height: 65vh; overflow-y: auto; padding: 0 10px;">
+    <div v-if="compareData" id="compare-report-content" ref="compareContentRef" style="max-height: 65vh; overflow-y: auto; padding: 0 10px;">
       <!-- 用户基本信息 -->
       <div style="border-left: 4px solid #409EFF; padding-left: 10px; margin-bottom: 16px; font-weight: bold;">
         被试：{{ maskName(user?.name) }} | 性别：{{ user?.gender === 'male' ? '男' : '女' }} | 年龄：{{ userAge }}岁
@@ -1424,7 +1590,7 @@ async function saveAppointment() {
       <template v-else>
         <!-- 对比图表 -->
         <div class="compare-chart-wrapper">
-          <v-chart v-if="compareDialogVisible && compareChartOption" :option="compareChartOption" style="height: 300px; width: 100%;" autoresize />
+          <v-chart v-if="compareDialogVisible && compareChartOption" ref="compareChartRef" :option="compareChartOption" style="height: 300px; width: 100%;" autoresize />
         </div>
 
         <!-- 维度细节表格 -->
@@ -1460,6 +1626,10 @@ async function saveAppointment() {
     </div>
     <template #footer>
       <span class="dialog-footer">
+        <el-button type="primary" @click="printCompareReport">
+          <el-icon style="margin-right: 4px;"><Printer /></el-icon>
+          打印对比报告
+        </el-button>
         <el-button @click="compareDialogVisible = false">关闭</el-button>
       </span>
     </template>

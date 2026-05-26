@@ -1364,6 +1364,7 @@ function createWindow() {
     minHeight: 600,
     show: false, // 配合 maximize 先隐藏以防闪烁
     titleBarStyle: 'hiddenInset',
+    icon: path.join(__dirname, '../build/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -1381,6 +1382,20 @@ function createWindow() {
     // DevTools is now closed by default at startup to prevent automatically popping up.
     // It can still be manually toggled via View > Toggle Developer Tools (Ctrl+Shift+I).
   }
+
+  // 确保 F12 和 Ctrl+Shift+I / Cmd+Option+I 开发者工具快捷键失效，且彻底禁用 DevTools 打开
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    const isCtrlShiftI = (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i'
+    const isCmdOptionI = input.meta && input.alt && input.key.toLowerCase() === 'i'
+    if (input.key === 'F12' || isCtrlShiftI || isCmdOptionI) {
+      event.preventDefault()
+    }
+  })
+
+  // 如果因其它方式打开开发者工具，则立即关闭
+  mainWindow.webContents.on('devtools-opened', () => {
+    mainWindow?.webContents.closeDevTools()
+  })
 
   mainWindow.on('closed', () => {
     mainWindow = null
