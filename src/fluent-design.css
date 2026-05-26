@@ -1,0 +1,527 @@
+/* Windows 11 Fluent Design & WinUI 3 Global CSS Stylesheet */
+
+@import url('https://fonts.googleapis.com/css2?family=Segoe+UI:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap');
+
+/* Fluent Sidebar Navigation style (Windows Settings layout) */
+.fluent-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--fluent-bg);
+}
+
+.fluent-sidebar {
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
+  height: 100%;
+  background-color: var(--fluent-sidebar-bg);
+  backdrop-filter: blur(24px) saturate(125%);
+  -webkit-backdrop-filter: blur(24px) saturate(125%);
+  border-right: 1px solid var(--fluent-card-border);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 8px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.fluent-sidebar-header {
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.fluent-sidebar-logo {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fluent-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fluent-sidebar-menu {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fluent-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 4px;
+  color: var(--fluent-text-primary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.fluent-sidebar-item:hover {
+  background-color: var(--fluent-subtle-fill-hover);
+}
+
+.fluent-sidebar-item.active {
+  background-color: var(--fluent-subtle-fill);
+  font-weight: 600;
+  position: relative;
+  color: var(--fluent-accent) !important;
+}
+
+.fluent-sidebar-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background-color: var(--fluent-accent);
+  border-radius: 2px;
+}
+
+.fluent-sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--fluent-card-border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.fluent-content-container {
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+  padding: 32px 40px;
+  background-color: var(--fluent-bg);
+  box-sizing: border-box;
+}
+
+:root {
+  /* Fluent UI / WinUI 3 Colors - Light Theme */
+  --fluent-bg: #f3f3f3;
+  --fluent-sidebar-bg: rgba(243, 243, 243, 0.85);
+  --fluent-card-bg: rgba(255, 255, 255, 0.7);
+  --fluent-card-border: rgba(0, 0, 0, 0.0575);
+  --fluent-text-primary: #1c1c1c;
+  --fluent-text-secondary: #5d5d5d;
+  --fluent-accent: #0078d4;
+  --fluent-accent-hover: #106ebe;
+  --fluent-accent-active: #005a9e;
+  --fluent-subtle-fill: rgba(0, 0, 0, 0.04);
+  --fluent-subtle-fill-hover: rgba(0, 0, 0, 0.08);
+  --fluent-control-border: rgba(0, 0, 0, 0.15);
+  --fluent-font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --fluent-shadow: 0 4px 8px rgba(0, 0, 0, 0.04), 0 0 2px rgba(0, 0, 0, 0.06);
+
+  /* Element Plus custom overrides to adapt Fluent */
+  --el-color-primary: var(--fluent-accent);
+  --el-color-primary-light-3: var(--fluent-accent-hover);
+  --el-color-primary-light-9: rgba(0, 120, 212, 0.08);
+  --el-bg-color: var(--fluent-bg);
+
+  /* App legacy theme variables mapped to Fluent */
+  --app-bg: var(--fluent-bg);
+  --app-card: var(--fluent-card-bg);
+  --app-text: var(--fluent-text-primary);
+}
+
+:root.dark {
+  /* Fluent UI / WinUI 3 Colors - Dark Theme */
+  --fluent-bg: #202020;
+  --fluent-sidebar-bg: rgba(32, 32, 32, 0.85);
+  --fluent-card-bg: rgba(45, 45, 45, 0.7);
+  --fluent-card-border: rgba(255, 255, 255, 0.08);
+  --fluent-text-primary: #ffffff;
+  --fluent-text-secondary: #cad1d9;
+  --fluent-accent: #60cdff;
+  --fluent-accent-hover: #76d4ff;
+  --fluent-accent-active: #4ca3ff;
+  --fluent-subtle-fill: rgba(255, 255, 255, 0.06);
+  --fluent-subtle-fill-hover: rgba(255, 255, 255, 0.09);
+  --fluent-control-border: rgba(255, 255, 255, 0.12);
+  --fluent-shadow: 0 4px 8px rgba(0, 0, 0, 0.24), 0 0 2px rgba(0, 0, 0, 0.3);
+
+  /* Element Plus custom overrides to adapt Fluent */
+  --el-color-primary: var(--fluent-accent);
+  --el-color-primary-light-3: var(--fluent-accent-hover);
+  --el-color-primary-light-9: rgba(96, 205, 255, 0.12);
+  --el-bg-color: var(--fluent-bg);
+
+  /* App legacy theme variables mapped to Fluent */
+  --app-bg: var(--fluent-bg);
+  --app-card: var(--fluent-card-bg);
+  --app-text: var(--fluent-text-primary);
+}
+
+/* Global resets & typography */
+body {
+  font-family: var(--fluent-font-family) !important;
+  background-color: var(--fluent-bg) !important;
+  color: var(--fluent-text-primary) !important;
+  margin: 0;
+  padding: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+h1, h2, h3, h4, h5, h6, span, div, p, button, input, textarea, select {
+  font-family: var(--fluent-font-family) !important;
+}
+
+/* Acrylic / Mica material effect for cards and panels */
+.acrylic-panel, 
+.el-card, 
+.el-dialog,
+.el-timeline-item :deep(.el-card) {
+  background: var(--fluent-card-bg) !important;
+  backdrop-filter: blur(20px) saturate(125%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(125%) !important;
+  border: 1px solid var(--fluent-card-border) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--fluent-shadow) !important;
+  color: var(--fluent-text-primary) !important;
+  transition: all 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.el-card:hover {
+  transform: translateY(-1px);
+}
+
+.el-card__header {
+  border-bottom: 1px solid var(--fluent-card-border) !important;
+  padding: 12px 16px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+}
+
+/* Page headers layout consistency across pages */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-left h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+/* Windows 11 / WinUI 3 Fluent Buttons */
+.el-button {
+  font-family: var(--fluent-font-family) !important;
+  border-radius: 4px !important;
+  border: 1px solid var(--fluent-control-border) !important;
+  background-color: var(--fluent-card-bg) !important;
+  color: var(--fluent-text-primary) !important;
+  font-weight: 400 !important;
+  padding: 6px 16px !important;
+  height: 32px !important;
+  font-size: 14px !important;
+  transition: all 0.15s cubic-bezier(0.1, 0.9, 0.2, 1) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.el-button:hover {
+  background-color: var(--fluent-subtle-fill-hover) !important;
+  border-color: var(--fluent-control-border) !important;
+  color: var(--fluent-text-primary) !important;
+}
+
+.el-button:active {
+  transform: scale(0.985);
+  background-color: var(--fluent-subtle-fill) !important;
+  opacity: 0.9;
+}
+
+/* Circle / Icon Button styling for return/back keys */
+.el-button.is-circle {
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: var(--fluent-subtle-fill) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.el-button.is-circle:hover {
+  background-color: var(--fluent-subtle-fill-hover) !important;
+}
+
+.el-button.is-circle .el-icon {
+  font-size: 16px !important;
+  color: var(--fluent-text-primary) !important;
+}
+
+/* Primary buttons (Fluent Accent / WinUI 3 AccentButtonStyle) */
+.el-button--primary {
+  background-color: var(--fluent-accent) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.el-button--primary:hover {
+  background-color: var(--fluent-accent-hover) !important;
+  color: #ffffff !important;
+}
+
+.el-button--primary:active {
+  background-color: var(--fluent-accent-active) !important;
+}
+
+.dark .el-button--primary {
+  color: #000000 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.el-button--danger {
+  background-color: #c42b1c !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.el-button--danger:hover {
+  background-color: #b32015 !important;
+  color: #ffffff !important;
+}
+
+.el-button--success {
+  background-color: #107c41 !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #ffffff !important;
+}
+
+.el-button--success:hover {
+  background-color: #0b5930 !important;
+  color: #ffffff !important;
+}
+
+.el-button.is-link {
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  color: var(--fluent-accent) !important;
+  height: auto !important;
+  padding: 4px 8px !important;
+}
+
+.el-button.is-link:hover {
+  background-color: var(--fluent-subtle-fill-hover) !important;
+  text-decoration: none !important;
+}
+
+/* Fluent Form Controls */
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  background-color: var(--fluent-card-bg) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid var(--fluent-control-border) !important;
+  border-bottom: 2px solid var(--fluent-control-border) !important;
+  box-shadow: none !important;
+  border-radius: 4px !important;
+  transition: border-color 0.15s ease, border-bottom-color 0.15s ease !important;
+}
+
+.el-input__wrapper:hover,
+.el-textarea__inner:hover,
+.el-select__wrapper:hover {
+  border-color: var(--fluent-text-secondary) !important;
+}
+
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus,
+.el-select__wrapper.is-focus {
+  border-color: var(--fluent-accent) !important;
+  border-bottom-color: var(--fluent-accent) !important;
+}
+
+/* Fluent Radio Button styling */
+.el-radio__inner {
+  border: 1.5px solid var(--fluent-control-border) !important;
+  background-color: transparent !important;
+}
+
+.el-radio__input.is-checked .el-radio__inner {
+  border-color: var(--fluent-accent) !important;
+  background-color: var(--fluent-accent) !important;
+}
+
+.el-radio__inner::after {
+  width: 6px !important;
+  height: 6px !important;
+  background-color: #fff !important;
+}
+
+.dark .el-radio__input.is-checked .el-radio__inner::after {
+  background-color: #000 !important;
+}
+
+/* Fluent Switches */
+.el-switch__core {
+  background-color: var(--fluent-subtle-fill-hover) !important;
+  border: 1px solid var(--fluent-control-border) !important;
+  border-radius: 100px !important;
+}
+
+.el-switch.is-checked .el-switch__core {
+  background-color: var(--fluent-accent) !important;
+  border-color: var(--fluent-accent) !important;
+}
+
+.el-switch__core .el-switch__action {
+  background-color: var(--fluent-text-primary) !important;
+}
+
+.el-switch.is-checked .el-switch__core .el-switch__action {
+  background-color: #ffffff !important;
+}
+
+.dark .el-switch.is-checked .el-switch__core .el-switch__action {
+  background-color: #000000 !important;
+}
+
+/* Fluent Progress Bars */
+.el-progress-bar__outer {
+  background-color: var(--fluent-subtle-fill-hover) !important;
+  border-radius: 100px !important;
+}
+
+.el-progress-bar__inner {
+  background-color: var(--fluent-accent) !important;
+  border-radius: 100px !important;
+}
+
+/* Dialogs / Content Dialog style */
+.el-dialog {
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+.el-dialog__header {
+  padding: 20px 24px 10px 24px !important;
+}
+
+.el-dialog__body {
+  padding: 10px 24px 20px 24px !important;
+}
+
+.el-dialog__footer {
+  padding: 16px 24px 20px 24px !important;
+  border-top: 1px solid var(--fluent-card-border) !important;
+}
+
+/* Element UI Lists & Tables */
+.el-table {
+  background: transparent !important;
+  color: var(--fluent-text-primary) !important;
+}
+
+.el-table tr, .el-table th {
+  background: transparent !important;
+  color: var(--fluent-text-primary) !important;
+}
+
+.el-table__header-wrapper th {
+  border-bottom: 1px solid var(--fluent-card-border) !important;
+  font-weight: 600 !important;
+  background-color: var(--fluent-subtle-fill) !important;
+}
+
+.el-table td {
+  border-bottom: 1px solid var(--fluent-card-border) !important;
+}
+
+.el-table--enable-row-hover .el-table__body tr:hover > td {
+  background-color: var(--fluent-subtle-fill) !important;
+}
+
+/* Timeline Customization */
+.el-timeline-item__node {
+  background-color: var(--fluent-accent) !important;
+}
+
+.el-timeline-item__tail {
+  border-left: 2px solid var(--fluent-card-border) !important;
+}
+
+/* Scrollbar Customization for WinUI 3 Minimal Scrollbar style */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--fluent-subtle-fill-hover);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fluent-text-secondary);
+}
+
+/* Global Font Size Styling mappings */
+.fs-small {
+  font-size: 13px !important;
+}
+.fs-small h2 {
+  font-size: 20px !important;
+}
+.fs-small h3 {
+  font-size: 16px !important;
+}
+.fs-small p, .fs-small span, .fs-small div, .fs-small label, .fs-small button, .fs-small input, .fs-small td, .fs-small th {
+  font-size: 12px !important;
+}
+
+.fs-medium {
+  /* 中号保持系统默认字号 */
+}
+
+.fs-large {
+  font-size: 16px !important;
+}
+.fs-large h2 {
+  font-size: 28px !important;
+}
+.fs-large h3 {
+  font-size: 22px !important;
+}
+.fs-large p, .fs-large span, .fs-large div, .fs-large label, .fs-large button, .fs-large input, .fs-large td, .fs-large th {
+  font-size: 16px !important;
+}
+
+.fs-xlarge {
+  font-size: 18px !important;
+}
+.fs-xlarge h2 {
+  font-size: 32px !important;
+}
+.fs-xlarge h3 {
+  font-size: 26px !important;
+}
+.fs-xlarge p, .fs-xlarge span, .fs-xlarge div, .fs-xlarge label, .fs-xlarge button, .fs-xlarge input, .fs-xlarge td, .fs-xlarge th {
+  font-size: 18px !important;
+}
