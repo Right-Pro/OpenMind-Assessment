@@ -443,6 +443,15 @@ async function exportAnonymizedScaleData(scaleId: string) {
                 <el-icon style="margin-right: 4px;"><Download /></el-icon>
                 导出全部脱敏数据
               </el-button>
+              <el-button
+                type="success"
+                size="small"
+                plain
+                @click="$router.push({ path: '/data-analysis', query: { scaleId: row.id } })"
+              >
+                <el-icon style="margin-right: 4px;"><PieChart /></el-icon>
+                数据分析
+              </el-button>
             </div>
           </template>
         </el-table-column>

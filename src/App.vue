@@ -329,6 +329,10 @@ watch(
             <el-icon><Timer /></el-icon>
             <span>预约管理</span>
           </router-link>
+          <router-link to="/data-analysis" class="fluent-sidebar-item" :class="{ active: currentPath === '/data-analysis' }">
+            <el-icon><PieChart /></el-icon>
+            <span>数据分析</span>
+          </router-link>
           <router-link to="/settings" class="fluent-sidebar-item" :class="{ active: currentPath === '/settings' }">
             <el-icon><Setting /></el-icon>
             <span>系统设置</span>

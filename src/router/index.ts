@@ -51,6 +51,11 @@ const routes = [
     path: '/package-summary',
     name: 'packageSummary',
     component: () => import('@/views/PackageSummaryView.vue')
+  },
+  {
+    path: '/data-analysis',
+    name: 'dataAnalysis',
+    component: () => import('@/views/DataAnalysisView.vue')
   }
 ]
 
