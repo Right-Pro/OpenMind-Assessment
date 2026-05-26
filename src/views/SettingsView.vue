@@ -562,37 +562,95 @@ const checkUpdateLoading = ref(false)
 async function handleCheckUpdateManual() {
   checkUpdateLoading.value = true
   checkUpdateResult.value = ''
+  
+  // 更新上次检查时间（无论走缓存还是网络，都算是一次检查操作的响应）
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+  
+  // 增加缓存逻辑：24小时内不再重复请求（手动点击时也是）
   try {
-    const res = await fetch('https://api.github.com/repos/Right-Pro/OpenMind-Assessment/releases/latest', {
+    const cachedUpdateStr = localStorage.getItem('settings_cached_update_check')
+    if (cachedUpdateStr) {
+      const cached = JSON.parse(cachedUpdateStr)
+      const hours24 = 24 * 60 * 60 * 1000
+      if (Date.now() - cached.lastCheck < hours24) {
+        console.log('[ManualUpdate] Using cached update result:', cached.lastResult)
+        const latestVersion = cached.lastResult
+        const currentVersion = '1.0.1' // 与 package.json 保持一致
+        
+        lastCheckTime.value = timeStr
+        localStorage.setItem('settings_last_check_update_time', timeStr)
+
+        if (isVersionGreater(latestVersion, currentVersion)) {
+          checkUpdateResult.value = `发现新版本 v${latestVersion}`
+          window.dispatchEvent(new CustomEvent('open-update-dialog', {
+            detail: {
+              latestVersion,
+              currentVersion,
+              body: '',
+              htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom'
+            }
+          }))
+        } else {
+          checkUpdateResult.value = '已是最新版本'
+        }
+        checkUpdateLoading.value = false
+        return
+      }
+    }
+  } catch (e) {
+    console.warn('[ManualUpdate] Error reading cached update from localStorage:', e)
+  }
+
+  try {
+    const res = await fetch('https://github.com/Right-Pro/OpenMind-Assessment/releases.atom', {
       headers: { 'Cache-Control': 'no-cache' }
     })
     if (!res.ok) {
       throw new Error(`HTTP Error ${res.status}`)
     }
-    const data = await res.json()
-    const tagName = data.tag_name || ''
-    if (!tagName) {
-      throw new Error('No tag_name found')
+    const xmlText = await res.text()
+    // 解析 RSS Atom XML
+    const parser = new DOMParser()
+    const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+    const firstEntry = xmlDoc.querySelector('entry')
+    if (!firstEntry) {
+      throw new Error('No entry found in release feed')
     }
-    const latestVersion = tagName.startsWith('v') ? tagName.slice(1) : tagName
-    const currentVersion = '1.0.0' // 从 package.json 中直接显示 1.0.0
+    const titleNode = firstEntry.querySelector('title')
+    if (!titleNode || !titleNode.textContent) {
+      throw new Error('No title found in entry')
+    }
+    const titleText = titleNode.textContent // 例如 "OpenMind Assessment v1.0.1"
+    const match = titleText.match(/v([\d.]+)/)
+    if (!match) {
+      throw new Error(`Could not extract version from title: ${titleText}`)
+    }
+    const latestVersion = match[1]
+    const currentVersion = '1.0.1' // 与 package.json 保持一致
 
-    // 更新上次检查时间
-    const now = new Date()
-    const pad = (n: number) => String(n).padStart(2, '0')
-    const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+    // 写入本地缓存 {lastCheck: timestamp, lastResult: version}
+    try {
+      localStorage.setItem('settings_cached_update_check', JSON.stringify({
+        lastCheck: Date.now(),
+        lastResult: latestVersion
+      }))
+    } catch (e) {
+      console.warn('[ManualUpdate] Failed to write cache to localStorage:', e)
+    }
+
     lastCheckTime.value = timeStr
     localStorage.setItem('settings_last_check_update_time', timeStr)
 
     if (isVersionGreater(latestVersion, currentVersion)) {
       checkUpdateResult.value = `发现新版本 v${latestVersion}`
-      // 触发全局弹窗通知（可以通过 window.dispatchEvent，在 App.vue 里接收并显示 Dialog）
       window.dispatchEvent(new CustomEvent('open-update-dialog', {
         detail: {
           latestVersion,
           currentVersion,
-          body: data.body || '',
-          htmlUrl: data.html_url || 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
+          body: '',
+          htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom'
         }
       }))
     } else {
@@ -600,7 +658,7 @@ async function handleCheckUpdateManual() {
     }
   } catch (err) {
     console.warn('Manual check update failed:', err)
-    ElMessage.error('检查更新失败，请检查网络连接')
+    ElMessage.error('无法连接到更新服务器，请检查网络')
     checkUpdateResult.value = '检查更新失败'
   } finally {
     checkUpdateLoading.value = false
@@ -1520,7 +1578,7 @@ async function restoreDefaultShortcuts() {
         </template>
         <el-form label-width="180px">
           <el-form-item label="当前版本">
-            <span style="font-weight: bold;">当前版本：1.0.0</span>
+            <span style="font-weight: bold;">当前版本：1.0.1</span>
           </el-form-item>
           <el-form-item label="自动检查更新">
             <el-switch
@@ -1547,7 +1605,7 @@ async function restoreDefaultShortcuts() {
         <template #header>
           <span>关于</span>
         </template>
-        <p><strong>OpenMind Assessment</strong> v1.0.0</p>
+        <p><strong>OpenMind Assessment</strong> v1.0.1</p>
         <p>开源心理测评系统</p>
         <p>技术栈：Electron + Vue 3 + TypeScript + Element Plus + SQLite</p>
       </el-card>

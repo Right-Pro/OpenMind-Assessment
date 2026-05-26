@@ -182,24 +182,91 @@ async function triggerAutoUpdateCheck() {
     return
   }
 
+  // 增加本地缓存校验（24小时内不再重复请求）
   try {
-    const res = await fetch('https://api.github.com/repos/Right-Pro/OpenMind-Assessment/releases/latest', {
+    const cachedUpdateStr = localStorage.getItem('settings_cached_update_check')
+    if (cachedUpdateStr) {
+      const cached = JSON.parse(cachedUpdateStr)
+      const hours24 = 24 * 60 * 60 * 1000
+      if (Date.now() - cached.lastCheck < hours24) {
+        console.log('[AutoUpdate] Using cached update result:', cached.lastResult)
+        const latestVersion = cached.lastResult
+        const currentVersion = '1.0.1' // 与 package.json 保持一致
+        
+        // 检查是否已被用户忽略且在 3 天内
+        try {
+          const ignoredRecordStr = localStorage.getItem('settings_ignored_update_version')
+          if (ignoredRecordStr) {
+            const record = JSON.parse(ignoredRecordStr)
+            if (record.ignoredVersion === latestVersion) {
+              const threeDays = 3 * 24 * 60 * 60 * 1000
+              if (Date.now() - record.ignoredAt < threeDays) {
+                return
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[AutoUpdate] Error parsing ignored update version from localStorage:', e)
+        }
+
+        if (isVersionGreater(latestVersion, currentVersion)) {
+          updateInfo.value = {
+            latestVersion,
+            currentVersion,
+            body: '',
+            htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom'
+          }
+          showUpdateDialog.value = true
+        }
+        return
+      }
+    }
+  } catch (e) {
+    console.warn('[AutoUpdate] Error reading cached update from localStorage:', e)
+  }
+
+  try {
+    const res = await fetch('https://github.com/Right-Pro/OpenMind-Assessment/releases.atom', {
       headers: { 'Cache-Control': 'no-cache' }
     })
     if (!res.ok) {
-      console.warn(`[AutoUpdate] GitHub API returned status ${res.status}`)
+      console.warn(`[AutoUpdate] GitHub RSS returned status ${res.status}`)
       return
     }
-    const data = await res.json()
-    const tagName = data.tag_name || ''
-    if (!tagName) {
-      console.warn('[AutoUpdate] tag_name not found in release payload')
+    const xmlText = await res.text()
+    // 解析 RSS Atom XML
+    const parser = new DOMParser()
+    const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
+    const firstEntry = xmlDoc.querySelector('entry')
+    if (!firstEntry) {
+      console.warn('[AutoUpdate] No entry found in release feed')
       return
     }
-    const latestVersion = tagName.startsWith('v') ? tagName.slice(1) : tagName
-    const currentVersion = '1.0.0' // 从 package.json 的 version 字段读取
+    const titleNode = firstEntry.querySelector('title')
+    if (!titleNode || !titleNode.textContent) {
+      console.warn('[AutoUpdate] No title found in entry')
+      return
+    }
+    const titleText = titleNode.textContent // 例如 "OpenMind Assessment v1.0.1"
+    const match = titleText.match(/v([\d.]+)/)
+    if (!match) {
+      console.warn('[AutoUpdate] Could not extract version from title:', titleText)
+      return
+    }
+    const latestVersion = match[1]
+    const currentVersion = '1.0.1' // 与 package.json 保持一致
 
-    // 2. 检查是否已被用户忽略且在 3 天内
+    // 缓存结果到 localStorage，记录 {lastCheck: timestamp, lastResult: version}
+    try {
+      localStorage.setItem('settings_cached_update_check', JSON.stringify({
+        lastCheck: Date.now(),
+        lastResult: latestVersion
+      }))
+    } catch (e) {
+      console.warn('[AutoUpdate] Failed to write cache to localStorage:', e)
+    }
+
+    // 检查是否已被用户忽略且在 3 天内
     try {
       const ignoredRecordStr = localStorage.getItem('settings_ignored_update_version')
       if (ignoredRecordStr) {
@@ -207,7 +274,6 @@ async function triggerAutoUpdateCheck() {
         if (record.ignoredVersion === latestVersion) {
           const threeDays = 3 * 24 * 60 * 60 * 1000
           if (Date.now() - record.ignoredAt < threeDays) {
-            // 3 天内不再提示该版本
             return
           }
         }
@@ -220,8 +286,8 @@ async function triggerAutoUpdateCheck() {
       updateInfo.value = {
         latestVersion,
         currentVersion,
-        body: data.body || '',
-        htmlUrl: data.html_url || 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
+        body: '',
+        htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom'
       }
       showUpdateDialog.value = true
     }
