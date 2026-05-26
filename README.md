@@ -129,14 +129,14 @@ interface ScaleDefinition {
 - [x] 暗色模式切换
 
 ### Phase 2（计划中）
-- [ ] MMPI 专用计分 + 剖面图 + 效度校验
+- [X] MMPI 专用计分 + 剖面图 + 效度校验
 - [ ] 量表导入向导（UI 上传）
-- [ ] 测试历史对比趋势图
-- [ ] 打印优化
+- [X] 测试历史对比趋势图
+- [X] 打印优化
 
 ### Phase 3（计划中）
-- [ ] 量表编辑器（可视化编辑 JSON）
-- [ ] 数据加密（SQLite 加密）
+- [X] 量表编辑器（可视化编辑 JSON）
+- [X] 数据加密（SQLite 加密）
 - [ ] 多语言支持
 
 ## 隐私声明
@@ -149,4 +149,4 @@ interface ScaleDefinition {
 
 ## License
 
-MIT
+Apache-2.0 license
