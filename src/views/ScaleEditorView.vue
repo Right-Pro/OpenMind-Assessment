@@ -459,7 +459,7 @@ async function handleSaveScale() {
             <template #header>
               <span class="card-title">基本信息配置</span>
             </template>
-            <el-form label-width="100px" size="small">
+            <el-form label-width="auto" size="small">
               <el-row :gutter="12">
                 <el-col :span="12">
                   <el-form-item label="量表唯一ID" required>
@@ -528,7 +528,7 @@ async function handleSaveScale() {
             <template #header>
               <span class="card-title">作答与控制设置</span>
             </template>
-            <el-form label-width="120px" size="small">
+            <el-form label-width="auto" size="small">
               <el-row :gutter="12">
                 <el-col :span="12">
                   <el-form-item label="允许返回上一题">
@@ -569,7 +569,7 @@ async function handleSaveScale() {
               </div>
             </template>
 
-            <el-form label-width="80px" size="small">
+            <el-form label-width="auto" size="small">
               <el-form-item label="题干文本" required>
                 <el-input v-model="editingQuestion.text" placeholder="请输入题目题干文本说明" />
               </el-form-item>
@@ -719,7 +719,7 @@ async function handleSaveScale() {
       width="440px"
       align-center
     >
-      <el-form :model="newScaleForm" label-width="100px" size="small">
+      <el-form :model="newScaleForm" label-width="auto" size="small">
         <el-form-item label="量表唯一ID" required>
           <el-input v-model="newScaleForm.id" placeholder="只能使用英文/数字, 如 GAD-7" />
         </el-form-item>

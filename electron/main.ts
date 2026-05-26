@@ -444,21 +444,7 @@ function initDatabase() {
   }
 
   // Create crisis_alerts table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS crisis_alerts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      test_record_id INTEGER,
-      scale_id TEXT,
-      subject_id INTEGER,
-      alert_level TEXT, -- 'high', 'critical'
-      alert_reason TEXT,
-      status TEXT DEFAULT 'pending', -- 'pending', 'acknowledged', 'resolved'
-      acknowledged_note TEXT,
-      operator_name TEXT,
-      created_at TEXT DEFAULT (datetime('now', 'localtime')),
-      resolved_at TEXT
-    );
-  `);
+  db.exec("CREATE TABLE IF NOT EXISTS crisis_alerts (id INTEGER PRIMARY KEY AUTOINCREMENT, test_record_id INTEGER, scale_id TEXT, subject_id INTEGER, alert_level TEXT, alert_reason TEXT, status TEXT DEFAULT 'pending', acknowledged_note TEXT, operator_name TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, resolved_at DATETIME)")
 
   // Create follow_up_plans table
   db.exec(`

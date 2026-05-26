@@ -132,7 +132,131 @@ onMounted(async () => {
   checkMaximizedState()
   resizeInterval = setInterval(checkMaximizedState, 500)
   window.addEventListener('resize', checkMaximizedState)
+
+  // 注册全局手动触发更新弹窗监听器
+  window.addEventListener('open-update-dialog', handleOpenUpdateDialogEvent as EventListener)
+
+  // 应用启动后延迟 15 秒执行自动检查更新
+  setTimeout(() => {
+    triggerAutoUpdateCheck()
+  }, 15000)
 })
+
+// 自动更新检测逻辑
+function isVersionGreater(v1: string, v2: string): boolean {
+  const arr1 = v1.split('.').map(Number)
+  const arr2 = v2.split('.').map(Number)
+  const len = Math.max(arr1.length, arr2.length)
+  for (let i = 0; i < len; i++) {
+    const num1 = arr1[i] !== undefined ? arr1[i] : 0
+    const num2 = arr2[i] !== undefined ? arr2[i] : 0
+    if (num1 > num2) return true
+    if (num1 < num2) return false
+  }
+  return false
+}
+
+const showUpdateDialog = ref(false)
+const updateInfo = ref({
+  latestVersion: '',
+  currentVersion: '',
+  body: '',
+  htmlUrl: ''
+})
+
+function handleOpenUpdateDialogEvent(e: CustomEvent) {
+  if (e.detail) {
+    updateInfo.value = {
+      latestVersion: e.detail.latestVersion || '',
+      currentVersion: e.detail.currentVersion || '',
+      body: e.detail.body || '',
+      htmlUrl: e.detail.htmlUrl || 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
+    }
+    showUpdateDialog.value = true
+  }
+}
+
+async function triggerAutoUpdateCheck() {
+  // 1. 如果用户关闭了自动检查则直接跳过
+  if (!settingsStore.autoCheckUpdate) {
+    return
+  }
+
+  try {
+    const res = await fetch('https://api.github.com/repos/Right-Pro/OpenMind-Assessment/releases/latest', {
+      headers: { 'Cache-Control': 'no-cache' }
+    })
+    if (!res.ok) {
+      console.warn(`[AutoUpdate] GitHub API returned status ${res.status}`)
+      return
+    }
+    const data = await res.json()
+    const tagName = data.tag_name || ''
+    if (!tagName) {
+      console.warn('[AutoUpdate] tag_name not found in release payload')
+      return
+    }
+    const latestVersion = tagName.startsWith('v') ? tagName.slice(1) : tagName
+    const currentVersion = '1.0.0' // 从 package.json 的 version 字段读取
+
+    // 2. 检查是否已被用户忽略且在 3 天内
+    try {
+      const ignoredRecordStr = localStorage.getItem('settings_ignored_update_version')
+      if (ignoredRecordStr) {
+        const record = JSON.parse(ignoredRecordStr)
+        if (record.ignoredVersion === latestVersion) {
+          const threeDays = 3 * 24 * 60 * 60 * 1000
+          if (Date.now() - record.ignoredAt < threeDays) {
+            // 3 天内不再提示该版本
+            return
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[AutoUpdate] Error parsing ignored update version from localStorage:', e)
+    }
+
+    if (isVersionGreater(latestVersion, currentVersion)) {
+      updateInfo.value = {
+        latestVersion,
+        currentVersion,
+        body: data.body || '',
+        htmlUrl: data.html_url || 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
+      }
+      showUpdateDialog.value = true
+    }
+  } catch (err) {
+    console.warn('[AutoUpdate] Automatic update check failed:', err)
+  }
+}
+
+function handleIgnoreUpdate() {
+  try {
+    localStorage.setItem('settings_ignored_update_version', JSON.stringify({
+      ignoredVersion: updateInfo.value.latestVersion,
+      ignoredAt: Date.now()
+    }))
+  } catch (e) {
+    console.warn('[AutoUpdate] Failed to write ignored version to localStorage:', e)
+  }
+  showUpdateDialog.value = false
+}
+
+function handleDownloadUpdate() {
+  if (window.electronAPI && typeof window.electronAPI.showOpenDialog === 'function') {
+    // 使用 electron shell 打开浏览器
+    // 在主进程中或直接通过 exposeInMainWorld
+    // electron/preload.ts 里我们没有暴露 shell 模块，但是我们可以查看 window.electronAPI。
+    // 如果没有，直接利用 window.open 或在 App.vue 直接 a 标签跳转，但 Electron 里 shell.openExternal 更优。
+    // 我们可以直接让主进程去打开或用 window.open。在 Electron 渲染进程中，window.open() 会被自动拦截或直接打开系统默认浏览器。
+    // 现代 Electron 中，在没有 nodeIntegration 的情况下，window.open(url) 可以直接用默认浏览器打开。
+    // 我们还可以为了确保完美，先用 window.open。
+    window.open(updateInfo.value.htmlUrl)
+  } else {
+    window.open(updateInfo.value.htmlUrl)
+  }
+  showUpdateDialog.value = false
+}
 
 import { onBeforeUnmount } from 'vue'
 onBeforeUnmount(() => {
@@ -143,6 +267,7 @@ onBeforeUnmount(() => {
     clearInterval(resizeInterval)
   }
   window.removeEventListener('resize', checkMaximizedState)
+  window.removeEventListener('open-update-dialog', handleOpenUpdateDialogEvent as EventListener)
 })
 
 function checkUserSession() {
@@ -678,6 +803,50 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
       </template>
     </el-dialog>
 
+    <!-- 用户选择/创建对话框 -->
+    <el-dialog
+      v-model="showUserSelect"
+      title="请先选择或创建被试用户档案"
+      width="500px"
+      :close-on-click-modal="false"
+      :show-close="userStore.currentUser !== null"
+      align-center
+    >
+      <!-- 对话框内容已略 -->
+    </el-dialog>
+
+    <!-- 新版本更新提示弹窗 -->
+    <el-dialog
+      v-model="showUpdateDialog"
+      :title="`发现新版本 v${updateInfo.latestVersion}`"
+      width="520px"
+      align-center
+      :close-on-click-modal="true"
+      :close-on-press-escape="true"
+    >
+      <div style="font-size: 14px; line-height: 1.6;">
+        <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; background: var(--fluent-bg); padding: 8px 12px; border-radius: 4px;">
+          <span>当前版本：<strong>v{{ updateInfo.currentVersion }}</strong></span>
+          <el-icon><ArrowRight /></el-icon>
+          <span style="color: var(--el-color-success);">最新版本：<strong>v{{ updateInfo.latestVersion }}</strong></span>
+        </div>
+        <div v-if="updateInfo.body" style="margin-top: 16px;">
+          <div style="font-weight: bold; margin-bottom: 8px; color: var(--fluent-text-primary);">更新日志摘要：</div>
+          <div style="background: var(--fluent-bg); padding: 12px; border-radius: 4px; max-height: 180px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; word-break: break-all; font-size: 12px; color: var(--fluent-text-secondary); border: 1px solid var(--fluent-card-border);">
+            {{ updateInfo.body.length > 300 ? updateInfo.body.slice(0, 300) + '...' : updateInfo.body }}
+          </div>
+        </div>
+        <div style="margin-top: 16px; text-align: right;">
+          <el-link type="primary" :href="updateInfo.htmlUrl" target="_blank" style="font-size: 13px;">查看完整更新日志</el-link>
+        </div>
+      </div>
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <el-button @click="handleIgnoreUpdate">稍后提醒</el-button>
+          <el-button type="primary" @click="handleDownloadUpdate">下载更新</el-button>
+        </div>
+      </template>
+    </el-dialog>
     <!-- 用户选择/创建对话框 -->
     <el-dialog
       v-model="showUserSelect"

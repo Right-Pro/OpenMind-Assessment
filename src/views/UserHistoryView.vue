@@ -1325,7 +1325,7 @@ async function saveAppointment() {
       title="选择要导出全部去标识化数据的量表"
       width="480px"
     >
-      <el-form :model="exportScaleForm" label-width="100px" style="padding: 10px 0;">
+      <el-form :model="exportScaleForm" label-width="auto" style="padding: 10px 0;">
         <el-form-item label="量表选择" required>
           <el-select v-model="exportScaleForm.scaleId" placeholder="请选择要导出的量表" style="width: 100%;">
             <el-option
@@ -1744,7 +1744,7 @@ async function saveAppointment() {
       width="500px"
       append-to-body
     >
-    <el-form :model="apptForm" label-width="80px">
+    <el-form :model="apptForm" label-width="auto">
       <el-form-item label="选择量表" required>
         <el-select v-model="apptForm.scaleId" placeholder="请选择要测试的量表" style="width: 100%;">
           <el-option

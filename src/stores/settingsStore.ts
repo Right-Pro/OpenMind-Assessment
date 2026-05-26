@@ -165,6 +165,17 @@ export const useSettingsStore = defineStore('settings', () => {
     })()
   )
 
+  const autoCheckUpdate = ref<boolean>(
+    (() => {
+      try {
+        const val = localStorage.getItem('settings_auto_check_update')
+        return val === null ? true : val === 'true'
+      } catch (e) {
+        return true
+      }
+    })()
+  )
+
   async function init() {
     try {
       if (window.electronAPI) {
@@ -211,6 +222,10 @@ export const useSettingsStore = defineStore('settings', () => {
             case 'watermarkText':
               watermarkText.value = row.value
               localStorage.setItem('settings_watermarkText', watermarkText.value)
+              break
+            case 'auto_check_update':
+              autoCheckUpdate.value = row.value === 'true'
+              localStorage.setItem('settings_auto_check_update', String(autoCheckUpdate.value))
               break
             case 'font_size_slider':
               fontSizeSlider.value = Number(row.value) || 14
@@ -347,6 +362,11 @@ export const useSettingsStore = defineStore('settings', () => {
     await saveSetting('watermarkText', val)
   }
 
+  async function setAutoCheckUpdate(val: boolean) {
+    autoCheckUpdate.value = val
+    await saveSetting('auto_check_update', String(val))
+  }
+
   async function setUnitLogo(val: string) {
     unitLogo.value = val
     await saveSetting('unitLogo', val)
@@ -377,6 +397,7 @@ export const useSettingsStore = defineStore('settings', () => {
     highContrastMode,
     keyboardShortcuts,
     defaultShortcuts,
+    autoCheckUpdate,
     init,
     setDarkMode,
     setFontSize,
@@ -394,6 +415,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setSeniorTtsThreshold,
     setTestPageBg,
     setWatermarkText,
+    setAutoCheckUpdate,
     setUnitLogo,
     deleteUnitLogo,
     fontSizeClass

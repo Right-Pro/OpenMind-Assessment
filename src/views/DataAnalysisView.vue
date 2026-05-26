@@ -969,7 +969,7 @@ onMounted(async () => {
           <div class="tab-module-container">
             <!-- 顶部多条件筛选区 -->
             <div class="filter-section acrylic-panel" style="padding: 16px 20px;">
-              <el-form :model="m3Filters" inline label-width="80px">
+              <el-form :model="m3Filters" inline label-width="auto">
                 <el-form-item label="选择量表" required>
                   <el-select
                     v-model="m3Filters.scaleId"

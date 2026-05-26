@@ -1292,7 +1292,7 @@ async function confirmImport() {
         </div>
       </template>
       <div v-show="!isAdvancedSearchCollapsed">
-        <el-form label-width="80px" size="default" style="margin-bottom: -10px;">
+        <el-form label-width="auto" size="default" style="margin-bottom: -10px;">
           <el-row :gutter="20">
             <el-col :span="6">
               <el-form-item label="被试姓名">
@@ -1580,7 +1580,7 @@ async function confirmImport() {
       width="500px"
       append-to-body
     >
-      <el-form :model="editingUser" :rules="formRules" label-width="90px">
+      <el-form :model="editingUser" :rules="formRules" label-width="auto">
         <el-form-item label="姓名/化名" prop="name">
           <el-input v-model="editingUser.name" placeholder="请输入被试姓名或代称" />
         </el-form-item>
@@ -1648,7 +1648,7 @@ async function confirmImport() {
     width="500px"
     append-to-body
   >
-    <el-form :model="apptForm" label-width="80px">
+    <el-form :model="apptForm" label-width="auto">
       <el-form-item label="选择量表" required>
         <el-select v-model="apptForm.scaleId" placeholder="请选择要测试的量表" style="width: 100%;">
           <el-option

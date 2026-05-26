@@ -1071,3 +1071,9 @@ h3 {
 .fs-xlarge p, .fs-xlarge span, .fs-xlarge div, .fs-xlarge label, .fs-xlarge button, .fs-xlarge input, .fs-xlarge td, .fs-xlarge th {
   font-size: 18px !important;
 }
+
+/* 修复字体调大后表单标签换行及重叠问题 */
+.el-form-item__label {
+  white-space: nowrap !important;
+  min-width: 120px;
+}

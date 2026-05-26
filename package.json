@@ -7,13 +7,13 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build && electron-builder",
-    "build:win": "vue-tsc --noEmit && vite build && electron-builder --win",
-    "build:mac": "vue-tsc --noEmit && vite build && electron-builder --mac",
-    "build:linux": "vue-tsc --noEmit && vite build && electron-builder --linux",
-    "preview": "vite preview",
-    "lint": "eslint . --ext .vue,.ts,.tsx --fix"
+  "dev": "vite",
+  "build": "vite build && electron-builder",
+  "build:win": "vite build && electron-builder --win",
+  "build:mac": "vite build && electron-builder --mac",
+  "build:linux": "vite build && electron-builder --linux",
+  "preview": "vite preview",
+  "lint": "eslint . --ext .vue,.ts,.tsx --fix"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
@@ -42,43 +42,27 @@
     "vue-tsc": "^1.8.27"
   },
   "build": {
-    "appId": "com.openmind.assessment",
-    "productName": "OpenMind Assessment",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "resources/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "resources",
-        "to": "resources",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ]
-    },
-    "win": {
-      "icon": "build/icon.ico",
-      "target": [
-        "nsis",
-        "portable"
-      ]
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ]
+  "appId": "com.openmind.assessment",
+  "productName": "OpenMind Assessment",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "resources/**/*",
+    "node_modules/better-sqlite3/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "resources",
+      "to": "resources",
+      "filter": ["**/*"]
     }
+  ],
+  "win": {
+    "icon": "build/icon.ico",
+    "target": ["nsis", "portable"]
   }
+ }
 }

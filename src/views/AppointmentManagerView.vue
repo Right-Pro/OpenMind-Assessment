@@ -255,7 +255,7 @@ function tableRowClassName({ row }: { row: Appointment }) {
       width="500px"
       append-to-body
     >
-      <el-form :model="apptForm" label-width="100px">
+      <el-form :model="apptForm" label-width="auto">
         <el-form-item label="选择被试" required>
           <el-select v-model="apptForm.userId" placeholder="请选择被试" style="width: 100%;">
             <el-option

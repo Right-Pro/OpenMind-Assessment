@@ -539,6 +539,74 @@ async function clearTestingRecordsOnly() {
   }
 }
 
+// 版本比较逻辑：比较 v1 和 v2 (格式如 "1.0.0.1" vs "1.0.0")
+// 如果 v1 > v2 返回 true，否则返回 false
+function isVersionGreater(v1: string, v2: string): boolean {
+  const arr1 = v1.split('.').map(Number)
+  const arr2 = v2.split('.').map(Number)
+  const len = Math.max(arr1.length, arr2.length)
+  for (let i = 0; i < len; i++) {
+    const num1 = arr1[i] !== undefined ? arr1[i] : 0
+    const num2 = arr2[i] !== undefined ? arr2[i] : 0
+    if (num1 > num2) return true
+    if (num1 < num2) return false
+  }
+  return false
+}
+
+// 立即检查更新逻辑
+const lastCheckTime = ref(localStorage.getItem('settings_last_check_update_time') || '')
+const checkUpdateResult = ref('')
+const checkUpdateLoading = ref(false)
+
+async function handleCheckUpdateManual() {
+  checkUpdateLoading.value = true
+  checkUpdateResult.value = ''
+  try {
+    const res = await fetch('https://api.github.com/repos/Right-Pro/OpenMind-Assessment/releases/latest', {
+      headers: { 'Cache-Control': 'no-cache' }
+    })
+    if (!res.ok) {
+      throw new Error(`HTTP Error ${res.status}`)
+    }
+    const data = await res.json()
+    const tagName = data.tag_name || ''
+    if (!tagName) {
+      throw new Error('No tag_name found')
+    }
+    const latestVersion = tagName.startsWith('v') ? tagName.slice(1) : tagName
+    const currentVersion = '1.0.0' // 从 package.json 中直接显示 1.0.0
+
+    // 更新上次检查时间
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
+    lastCheckTime.value = timeStr
+    localStorage.setItem('settings_last_check_update_time', timeStr)
+
+    if (isVersionGreater(latestVersion, currentVersion)) {
+      checkUpdateResult.value = `发现新版本 v${latestVersion}`
+      // 触发全局弹窗通知（可以通过 window.dispatchEvent，在 App.vue 里接收并显示 Dialog）
+      window.dispatchEvent(new CustomEvent('open-update-dialog', {
+        detail: {
+          latestVersion,
+          currentVersion,
+          body: data.body || '',
+          htmlUrl: data.html_url || 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
+        }
+      }))
+    } else {
+      checkUpdateResult.value = '已是最新版本'
+    }
+  } catch (err) {
+    console.warn('Manual check update failed:', err)
+    ElMessage.error('检查更新失败，请检查网络连接')
+    checkUpdateResult.value = '检查更新失败'
+  } finally {
+    checkUpdateLoading.value = false
+  }
+}
+
 // 原始数据批量导出功能
 async function exportRawData() {
   try {
@@ -979,7 +1047,7 @@ async function restoreDefaultShortcuts() {
         <template #header>
           <span>界面设置</span>
         </template>
-        <el-form label-width="180px">
+        <el-form label-width="auto">
           <el-form-item label="暗色模式">
             <el-switch
               :model-value="settingsStore.darkMode"
@@ -1197,7 +1265,7 @@ async function restoreDefaultShortcuts() {
         <template #header>
           <span>快捷键设置</span>
         </template>
-        <el-form label-width="180px">
+        <el-form label-width="auto">
           <el-table :data="shortcutTableData" style="width: 100%; margin-bottom: 16px;">
             <el-table-column label="操作名称" prop="name" width="200" />
             <el-table-column label="当前快捷键" width="220">
@@ -1443,6 +1511,35 @@ async function restoreDefaultShortcuts() {
           :closable="false"
           show-icon
         />
+      </el-card>
+
+      <!-- 软件更新 -->
+      <el-card class="settings-section">
+        <template #header>
+          <span>软件更新</span>
+        </template>
+        <el-form label-width="180px">
+          <el-form-item label="当前版本">
+            <span style="font-weight: bold;">当前版本：1.0.0</span>
+          </el-form-item>
+          <el-form-item label="自动检查更新">
+            <el-switch
+              :model-value="settingsStore.autoCheckUpdate"
+              @update:model-value="settingsStore.setAutoCheckUpdate"
+            />
+          </el-form-item>
+          <el-form-item label="立即检查">
+            <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+              <el-button type="primary" :loading="checkUpdateLoading" @click="handleCheckUpdateManual">立即检查更新</el-button>
+              <div v-if="lastCheckTime" style="font-size: 13px; color: #606266;">
+                上次检查：{{ lastCheckTime }}
+              </div>
+              <div v-if="checkUpdateResult" style="font-size: 13px; font-weight: bold; color: var(--el-color-primary);">
+                {{ checkUpdateResult }}
+              </div>
+            </div>
+          </el-form-item>
+        </el-form>
       </el-card>
 
       <!-- 版本信息 -->

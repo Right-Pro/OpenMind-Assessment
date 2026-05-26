@@ -35,3 +35,19 @@ resources/scales/*
 # 操作系统文件
 .DS_Store
 Thumbs.db
+
+# 打包输出
+/release/
+/dist/
+/dist-electron/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.zip
+
+# 依赖
+/node_modules/
+
+# 日志
+*.log
