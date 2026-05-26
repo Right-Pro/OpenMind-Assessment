@@ -1067,7 +1067,15 @@ function viewTestResult(test: TestHistory) {
     const testResult = JSON.parse(test.result_json)
     const scale = scaleStore.getScaleById(test.scale_id)
     if (!scale) {
-      ElMessage.error('未找到对应的量表定义，可能已被删除或禁用')
+      const displayScore = test.std_score !== null && test.std_score !== undefined ? test.std_score : test.raw_score
+      ElMessageBox.alert(
+        `该量表文件已在当前版本中移除，仅保留原始得分记录：总分 ${displayScore}`,
+        '量表文件不存在',
+        {
+          confirmButtonText: '确定',
+          type: 'warning'
+        }
+      )
       return
     }
     // 附加额外字段以便 ResultView 展现/编辑

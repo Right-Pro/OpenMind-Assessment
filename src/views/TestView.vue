@@ -1069,7 +1069,7 @@ watch(scaleId, (newId) => {
         </div>
 
         <!-- 题号网格 -->
-        <div class="question-grid">
+        <div class="question-grid" :class="{ 'large-scale': scale.questions.length > 100 }">
           <div
             v-for="(q, idx) in scale.questions"
             :key="q.id"
@@ -1352,6 +1352,7 @@ watch(scaleId, (newId) => {
   border-bottom: 1px solid var(--el-border-color);
   /* 为 macOS titleBarStyle hiddenInset 流量控制灯预留左侧拖拽/安全空间，如果有隐藏侧边栏的全屏需求 */
   padding-left: 80px;
+  flex-shrink: 0;
 }
 
 .header-left-area {
@@ -1675,6 +1676,9 @@ watch(scaleId, (newId) => {
   background: var(--app-card, #fff);
   border-top: 1px solid var(--el-border-color);
   padding: 16px 24px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .footer-nav {
@@ -1682,6 +1686,7 @@ watch(scaleId, (newId) => {
   justify-content: center;
   gap: 16px;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 
 .question-grid {
@@ -1690,6 +1695,22 @@ watch(scaleId, (newId) => {
   gap: 6px;
   max-width: 800px;
   margin: 0 auto;
+  width: 100%;
+  max-height: 35vh;
+  overflow-y: auto;
+  padding-right: 4px; /* offset for scrollbar */
+}
+
+/* 小屏适配：窗口高度较矮时，限制题号区域最大高度为 30vh */
+@media (max-height: 768px) {
+  .question-grid {
+    max-height: 30vh;
+  }
+}
+
+.question-grid.large-scale {
+  grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+  gap: 4px;
 }
 
 .grid-cell {
@@ -1703,6 +1724,11 @@ watch(scaleId, (newId) => {
   border: 1px solid var(--el-border-color);
   background: var(--el-fill-color);
   transition: all 0.2s;
+}
+
+.question-grid.large-scale .grid-cell {
+  height: 28px;
+  font-size: 12px;
 }
 
 .grid-cell:hover {
