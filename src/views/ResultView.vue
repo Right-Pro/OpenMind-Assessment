@@ -27,6 +27,27 @@ const showRawData = ref(false)
 const saving = ref(false)
 const isSaved = ref(false)
 
+// 批量测评数据结构
+const batchResults = ref<any[]>([])
+const selectedBatchIndex = ref(0)
+const isBatch = computed(() => !!route.query.batchIds)
+
+const scale = computed(() => {
+  if (isBatch.value && batchResults.value.length > 0) {
+    const scaleId = batchResults.value[selectedBatchIndex.value]?.scaleId
+    return scaleStore.getScaleById(scaleId)
+  }
+  return testStore.currentScale
+})
+
+// 强制转型为 any 规避 typescript unknown 校验
+const result = computed<any>(() => {
+  if (isBatch.value && batchResults.value.length > 0) {
+    return batchResults.value[selectedBatchIndex.value]?.result
+  }
+  return testStore.result
+})
+
 // 答题明细默认显隐状态逻辑 (≤ 20 题默认勾选，否则默认不勾选)
 const includeDetails = ref(false)
 
@@ -56,27 +77,6 @@ function getOptionLabel(questionId: any, answerValue: any, answerScore: any) {
   }
   return opt ? opt.label : (answerValue ?? '/')
 }
-
-// 批量测评数据结构
-const batchResults = ref<any[]>([])
-const selectedBatchIndex = ref(0)
-const isBatch = computed(() => !!route.query.batchIds)
-
-// 强制转型为 any 规避 typescript unknown 校验
-const result = computed<any>(() => {
-  if (isBatch.value && batchResults.value.length > 0) {
-    return batchResults.value[selectedBatchIndex.value]?.result
-  }
-  return testStore.result
-})
-
-const scale = computed(() => {
-  if (isBatch.value && batchResults.value.length > 0) {
-    const scaleId = batchResults.value[selectedBatchIndex.value]?.scaleId
-    return scaleStore.getScaleById(scaleId)
-  }
-  return testStore.currentScale
-})
 
 // 计算用户年龄
 const userAge = computed(() => {

@@ -1,152 +1,95 @@
-# OpenMind Assessment - 开源心理测评系统
+&lt;p align="center"&gt;
+  &lt;img src="https://raw.githubusercontent.com/Right-Pro/OpenMind-Assessment/main/build/icon.png" width="120" alt="OpenMind Logo"&gt;
+&lt;/p&gt;
 
-> 纯本地运行、跨平台、开源免费的心理测评桌面软件。
+&lt;h1 align="center"&gt;OpenMind Assessment&lt;/h1&gt;
 
-## 核心特点
+&lt;p align="center"&gt;
+  开源、免费、可定制的心理测评系统&lt;br&gt;
+  数据完全本地存储 · 支持自定义量表导入 · 内置危机预警
+&lt;/p&gt;
 
-- **量表与程序完全分离**：所有量表以独立 JSON 文件存在，程序自动扫描加载
-- **纯本地存储**：所有数据保存在本地 SQLite，不上传任何服务器
-- **热插拔量表**：随时拖入新的量表 JSON，重启即可使用
-- **模块化计分**：通用计分引擎，不硬编码任何量表逻辑
+&lt;p align="center"&gt;
+  &lt;a href="https://github.com/Right-Pro/OpenMind-Assessment/releases"&gt;
+    &lt;img src="https://img.shields.io/github/v/release/Right-Pro/OpenMind-Assessment?style=flat-square" alt="Release"&gt;
+  &lt;/a&gt;
+  &lt;a href="LICENSE"&gt;
+    &lt;img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square" alt="License"&gt;
+  &lt;/a&gt;
+  &lt;img src="https://img.shields.io/badge/platform-Windows-blue?style=flat-square" alt="Platform"&gt;
+&lt;/p&gt;
+
+---
+
+## 为什么做 OpenMind？
+
+市面上心理测评软件要么**贵**（几万到十几万），要么**数据上传服务器**有隐私风险。OpenMind 面向学校心理中心、小型咨询机构和个人执业咨询师，提供**完全免费、完全本地、可自定义**的测评工具。
+
+&gt; "你的被试数据，永远留在你的电脑上。"
+
+## 功能特性
+
+- **核心测评引擎** —— 支持单量表测评与套餐连续测评
+- **量表自定义导入** —— 通过 JSON 格式导入自有量表，无需等待厂商更新
+- **档案袋与报告导出** —— 生成 PDF/打印报告，支持 Logo 自定义
+- **数据分析中心** —— 历史得分趋势图、量表对比分析、Excel 导出
+- **危机预警** —— BSS / C-SSRS 自杀相关量表自动弹窗提醒
+- **无障碍优化** —— 字体无极调节、高对比度模式、暗色模式
+- **自动更新检测** —— 一键检查 GitHub 最新版本
+
+## 下载安装
+
+前往 **[Releases](https://github.com/Right-Pro/OpenMind-Assessment/releases)** 页面，下载最新版 `OpenMind Assessment Setup x.x.x.exe`，双击安装即可。
+
+&gt; 系统要求：Windows 10 / Windows 11
+
+## 内置量表
+
+内置 30+ 免费/学术通用量表，涵盖常见筛查与评估场景：
+
+| 类别 | 量表 |
+|------|------|
+| 抑郁筛查 | PHQ-9、GAD-7、GDS-15、CES-D-20 |
+| 焦虑筛查 | SAS、SDS、STAI（如已授权） |
+| 睡眠评估 | PSQI、AIS、ISI |
+| 人格/认知 | BFI-44、BIS-11、RSES |
+| 成瘾筛查 | AUDIT、FTND、CAGE |
+| 其他 | ADL、WHO-5、CGI、SDQ 等 |
+
+&gt; 支持通过**量表编辑器**或 JSON 文件导入自定义量表。
+
+## 截图
+
+（此处可补充软件截图）
 
 ## 技术栈
 
-- 前端：Vue 3 + Composition API + TypeScript
-- UI：Element Plus（支持暗色模式）
-- 图表：ECharts 5
-- 桌面壳：Electron
-- 数据库：SQLite（better-sqlite3）
-- 导出：html2canvas + jspdf + SheetJS
-- 打包：electron-builder
+- **Electron** —— 跨平台桌面应用框架
+- **Vue 3 + TypeScript** —— 前端界面
+- **Pinia** —— 状态管理
+- **Element Plus** —— UI 组件库
+- **SQLite (better-sqlite3)** —— 本地数据存储
+- **ECharts** —— 数据可视化
 
-## 快速开始
+## 赞助支持
 
-```bash
-# 安装依赖
-npm install
+如果 OpenMind 对你有帮助，欢迎赞助支持持续开发：
 
-# 开发模式运行
-npm run dev
+- **[爱发电](https://www.ifdian.net/a/Right-Pro/)** —— 请我喝快乐水 / 奶茶 ☕
 
-# 打包构建
-npm run build
-```
+赞助者名单将展示在 README 感谢列表中。
 
-## 添加量表
+## 商业支持
 
-1. 准备符合 [量表 JSON Schema](#量表json格式) 的 JSON 文件
-2. 将 JSON 文件放入 `resources/scales/` 目录
-3. 重启应用或在"量表管理"页面点击"重新扫描"
+开源版完全免费，适用于个人学习和小型机构。如需以下服务，请联系：
 
-## 量表 JSON 格式
+- 远程部署与安装配置
+- 功能定制与二次开发
+- 正版量表授权咨询
+- 技术支持与培训
 
-每个量表是一个独立的 JSON 文件，包含以下核心结构：
+📧 **right-pro@outlook.com**
 
-```typescript
-interface ScaleDefinition {
-  id: string;              // 唯一标识
-  name: string;            // 显示名称
-  description: string;     // 量表说明
-  version: string;
-  category: "mood" | "personality" | "psychiatric" | "cognitive" | "screening" | "other";
-  questions: Array<{
-    id: string | number;
-    text: string;
-    options: Array<{
-      label: string;
-      value: number | string;
-      score: number;
-    }>;
-    reverse?: boolean;     // 反向计分
-    dimension?: string;    // 所属维度
-  }>;
-  scoring: {
-    type: "sum" | "average" | "weighted" | "formula";
-    formula?: string;      // 如 "(sum - 20) * 1.25"
-    dimensions?: Array<{   // 分维度计分
-      name: string;
-      questionIds: (string | number)[];
-    }>;
-  };
-  interpretation: {
-    type: "cutoff";
-    cutoffs: Array<{
-      min?: number;
-      max?: number;
-      label: string;
-      severity: string;
-      color: string;
-      description: string;
-      suggestion?: string;
-    }>;
-  };
-  settings: {
-    allowBacktrack: boolean;
-    allowSkip: boolean;
-    timeLimit?: number;
-    minAnsweredPercent: number;
-    randomizeOrder: boolean;
-  };
-  reportTemplate: {
-    title: string;
-    sections: Array<{ type: string }>;
-  };
-}
-```
+## 许可证
 
-参考示例：`resources/scales/sas.json`、`resources/scales/phq-9.json`
-
-## 项目结构
-
-```
-├── electron/           # Electron 主进程
-│   ├── main.ts         # 主进程入口
-│   └── preload.ts      # 预加载脚本
-├── src/                # 渲染进程
-│   ├── main.ts         # Vue 入口
-│   ├── App.vue         # 根组件
-│   ├── router/         # Vue Router
-│   ├── stores/         # Pinia 状态管理
-│   ├── views/          # 页面组件
-│   ├── composables/    # 组合式函数
-│   └── types/          # TypeScript 类型
-├── resources/
-│   └── scales/         # 量表 JSON 文件
-└── package.json
-```
-
-## 功能模块
-
-### Phase 1（已实现）
-- [x] 项目脚手架（Electron + Vue 3 + TS + Element Plus）
-- [x] SQLite 数据库初始化与连接
-- [x] 量表加载器（扫描 + 校验 + 注入 Store）
-- [x] 通用答题引擎（单题模式 + 导航网格 + 键盘支持）
-- [x] 通用计分引擎（sum/average/formula + 反向计分）
-- [x] 结果展示页（分数卡片 + ECharts 柱状图 + 文字解释）
-- [x] 用户管理 + 测试历史列表
-- [x] PDF/Excel 导出基础版
-- [x] 暗色模式切换
-
-### Phase 2（计划中）
-- [X] MMPI 专用计分 + 剖面图 + 效度校验
-- [ ] 量表导入向导（UI 上传）
-- [X] 测试历史对比趋势图
-- [X] 打印优化
-
-### Phase 3（计划中）
-- [X] 量表编辑器（可视化编辑 JSON）
-- [X] 数据加密（SQLite 加密）
-- [ ] 多语言支持
-
-## 隐私声明
-
-本软件所有数据（量表文件、用户信息、测试记录）仅存储在您的本地设备，**默认不上传任何服务器**。首次启动时会弹出隐私确认对话框。
-
-## 免责声明
-
-> 本测试结果仅供参考，不能替代专业医疗诊断。如有心理困扰，请寻求专业心理咨询师或精神科医生的帮助。
-
-## License
-
-Apache-2.0 license
+OpenMind Assessment © 2026 Right-Pro. Licensed under [Apache 2.0](LICENSE).
