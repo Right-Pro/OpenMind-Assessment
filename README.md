@@ -73,7 +73,13 @@
 
 ## 截图
 
-（此处可补充软件截图）
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/ce68fb8b-22a3-400f-a7b2-34def2abdc29" width="80%" alt="OpenMind 首页">
+</p>
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/675df4d2-e8d8-473c-b752-46c9f1a163af" width="80%" alt="OpenMind 测评页">
+</p>
 
 ## 技术栈
 
