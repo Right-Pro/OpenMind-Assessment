@@ -1,6 +1,6 @@
 {
   "name": "openmind-assessment",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "OpenMind Assessment - 开源心理测评系统",
   "main": "dist-electron/main.js",
   "author": "OpenMind Team",
