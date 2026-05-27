@@ -149,10 +149,9 @@ const filteredScales = computed(() => {
 
   // 4. Applicable Only (to current user)
   if (filterApplicableOnly.value && userStore.currentUser) {
-    const userGender = userStore.currentUser.gender
     list = list.filter(scale => {
-      if (!scale.targetPopulation || !scale.targetPopulation.gender) return true
-      return scale.targetPopulation.gender === 'any' || scale.targetPopulation.gender === userGender
+      const status = getScaleApplicability(scale)
+      return status.applicable
     })
   }
 
@@ -463,6 +462,39 @@ function calculateAge(birthdateStr?: string) {
     age--
   }
   return age > 0 ? String(age) : '0'
+}
+
+function getScaleApplicability(scale: any): { applicable: boolean; text: string; type: string } {
+  if (!userStore.currentUser) {
+    return { applicable: false, text: '', type: '' }
+  }
+
+  // 1. 性别判断
+  const targetGender = scale.targetPopulation?.gender || 'any'
+  const userGender = userStore.currentUser.gender
+  const genderMatch = targetGender === 'any' || targetGender === userGender
+
+  // 2. 年龄判断
+  let ageMatch = true
+  if (scale.age_range) {
+    const { min, max } = scale.age_range
+    const ageVal = calculateAge(userStore.currentUser.birthdate)
+    if (ageVal === '/') {
+      // 如果有年龄限制，且被试年龄算不出来/无生日，视为不匹配
+      ageMatch = false
+    } else {
+      const ageNum = parseInt(ageVal, 10)
+      ageMatch = ageNum >= min && ageNum <= max
+    }
+  }
+
+  const isApplicable = genderMatch && ageMatch
+
+  return {
+    applicable: isApplicable,
+    text: isApplicable ? '当前适用' : '不适用',
+    type: isApplicable ? 'success' : 'info'
+  }
 }
 
 async function printBlankScale(scale: any) {
@@ -1085,14 +1117,14 @@ async function exportAnonymizedScaleData(scaleId: string) {
               <div class="scale-name-cell">
                 <div class="scale-name-row">
                   <span class="scale-name-text">{{ row.id }} {{ row.name }}</span>
-                  <!-- 匹配当前选中用户性别标签 -->
+                  <!-- 匹配当前选中用户适用性标签 -->
                   <el-tag
-                    v-if="userStore.currentUser && userStore.currentUser.gender && (row.targetPopulation.gender === 'any' || row.targetPopulation.gender === userStore.currentUser.gender)"
+                    v-if="userStore.currentUser && userStore.currentUser.gender"
                     size="mini"
-                    type="info"
+                    :type="getScaleApplicability(row).type"
                     class="applicability-tag"
                   >
-                    当前适用
+                    {{ getScaleApplicability(row).text }}
                   </el-tag>
                 </div>
                 <div class="scale-name-en" v-if="row.name_en">{{ row.name_en }}</div>
@@ -1101,14 +1133,14 @@ async function exportAnonymizedScaleData(scaleId: string) {
             <div v-else class="scale-name-cell">
               <div class="scale-name-row">
                 <span class="scale-name-text">{{ row.id }} {{ row.name }}</span>
-                <!-- 匹配当前选中用户性别标签 (兜底: targetPopulation 未指定或者为 any) -->
+                <!-- 匹配当前选中用户适用性标签 (兜底: targetPopulation 未指定或者为 any) -->
                 <el-tag
-                  v-if="userStore.currentUser && userStore.currentUser.gender && (!row.targetPopulation || !row.targetPopulation.gender || row.targetPopulation.gender === 'any')"
+                  v-if="userStore.currentUser && userStore.currentUser.gender"
                   size="mini"
-                  type="info"
+                  :type="getScaleApplicability(row).type"
                   class="applicability-tag"
                 >
-                  当前适用
+                  {{ getScaleApplicability(row).text }}
                 </el-tag>
               </div>
               <div class="scale-name-en" v-if="row.name_en">{{ row.name_en }}</div>

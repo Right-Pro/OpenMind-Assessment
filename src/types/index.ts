@@ -66,6 +66,7 @@ export interface ReportSection {
 
 export interface ScaleDefinition {
   id: string
+  age_range?: { min: number; max: number }
   name: string
   name_en?: string
   description: string

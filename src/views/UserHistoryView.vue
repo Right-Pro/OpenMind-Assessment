@@ -913,6 +913,22 @@ const scaleOptions = computed(() => {
   })
 })
 
+// 监听选中的量表，如果仅1次测试，则直接跳转到报告详情，并重置选中状态
+watch(selectedScaleId, (newVal) => {
+  if (!newVal) return
+  const opt = scaleOptions.value.find(o => o.id === newVal)
+  if (opt && opt.hasNoTrend) {
+    const singleTest = histories.value.find(h => h.scale_id === newVal)
+    if (singleTest) {
+      viewTestResult(singleTest)
+      // 延迟重置，防止选中状态残留
+      nextTick(() => {
+        selectedScaleId.value = ''
+      })
+    }
+  }
+})
+
 // 统计摘要
 const statistics = computed(() => {
   const now = new Date()
@@ -1249,12 +1265,12 @@ async function saveAppointment() {
               :key="opt.id"
               :label="opt.name"
               :value="opt.id"
-              :disabled="opt.disabled"
+              :disabled="false"
             >
               <div style="display: flex; justify-content: space-between; width: 100%; gap: 16px;">
                 <span>{{ opt.name }}</span>
                 <span style="color: var(--el-text-color-secondary); font-size: 12px;">
-                  {{ opt.disabled ? '仅1次测试，无趋势' : `${opt.count}次` }}
+                  {{ opt.hasNoTrend ? '仅1次测试，无趋势' : `${opt.count}次` }}
                 </span>
               </div>
             </el-option>

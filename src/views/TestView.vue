@@ -26,6 +26,54 @@ const scale = computed(() => scaleStore.getScaleById(scaleId.value))
 
 const showGuide = ref(true)
 const timerInterval = ref<number | null>(null)
+
+// 年龄段适配限制弹窗相关状态
+const showAgeLimitDialog = ref(false)
+const ageLimitMessage = ref('')
+const pendingConfirmResolve = ref<((value: boolean) => void) | null>(null)
+
+function checkAgeRange(currentScale: any): Promise<boolean> {
+  return new Promise((resolve) => {
+    // 历史记录/报告页不受限制。而在 TestView 开始测评前，我们检查当前量表和被试年龄。
+    // 读取当前被试年龄：由于 currentUserAge 是 computed 属性，如果没有被试或被试年龄无效，默认为 0 岁。
+    // 如果没有被试或者当前量表没有 age_range 限制，直接通过
+    if (!userStore.currentUser || !currentScale || !currentScale.age_range) {
+      resolve(true)
+      return
+    }
+
+    const { min, max } = currentScale.age_range
+    const age = currentUserAge.value
+    
+    // 如果量表 JSON 有 age_range 且被试年龄不在范围内
+    if (age < min || age > max) {
+      ageLimitMessage.value = `该量表适用于 ${min}-${max} 岁，当前被试年龄 ${age} 岁，是否继续？`
+      showAgeLimitDialog.value = true
+      pendingConfirmResolve.value = resolve
+    } else {
+      resolve(true)
+    }
+  })
+}
+
+function handleAgeLimitConfirm() {
+  showAgeLimitDialog.value = false
+  if (pendingConfirmResolve.value) {
+    pendingConfirmResolve.value(true)
+    pendingConfirmResolve.value = null
+  }
+}
+
+function handleAgeLimitCancel() {
+  showAgeLimitDialog.value = false
+  if (pendingConfirmResolve.value) {
+    pendingConfirmResolve.value(false)
+    pendingConfirmResolve.value = null
+  }
+  // 取消的话退出测评
+  testStore.clearTest()
+  router.push('/')
+}
 const elapsedSeconds = ref(0)
 const isPaused = ref(false)
 
@@ -783,6 +831,12 @@ onMounted(async () => {
     router.push('/')
     return
   }
+
+  // 校验当前量表适配年龄段限制
+  const proceed = await checkAgeRange(scale.value)
+  if (!proceed) {
+    return
+  }
   
   // 进入答题页面，添加隐藏自定义标题栏的 class
   document.body.classList.add('hide-titlebar')
@@ -864,6 +918,26 @@ watch(scaleId, (newId) => {
       'bg-contrast': settingsStore.testPageBg === 'contrast'
     }"
   >
+    <!-- 年龄段适配校验弹窗 -->
+    <el-dialog
+      v-model="showAgeLimitDialog"
+      title="提示"
+      width="400px"
+      :close-on-click-modal="false"
+      :show-close="false"
+      align-center
+    >
+      <div style="font-size: 15px; line-height: 1.5;">
+        {{ ageLimitMessage }}
+      </div>
+      <template #footer>
+        <div style="display: flex; justify-content: flex-end; gap: 12px;">
+          <el-button @click="handleAgeLimitCancel">取消</el-button>
+          <el-button type="primary" @click="handleAgeLimitConfirm">继续测评</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 指导语弹窗 -->
     <el-dialog
       v-model="showGuide"
@@ -1687,7 +1761,33 @@ watch(scaleId, (newId) => {
 
 .option-item.selected {
   border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
+  background-color: var(--el-color-primary, #409eff);
+  color: #ffffff;
+}
+
+.option-item.selected .option-key {
+  background-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.option-item.selected .option-hint {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Dark mode selected style remains unchanged */
+.dark .option-item.selected {
+  border-color: var(--el-color-primary) !important;
+  background-color: var(--el-color-primary-light-9) !important;
+  color: var(--app-text, #e0e0e0) !important;
+}
+
+.dark .option-item.selected .option-key {
+  background-color: var(--el-fill-color, #1e2a4a) !important;
+  color: var(--app-text, #e0e0e0) !important;
+}
+
+.dark .option-item.selected .option-hint {
+  color: var(--el-text-color-secondary) !important;
 }
 
 .option-key {

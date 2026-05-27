@@ -27,21 +27,52 @@ const showRawData = ref(false)
 const saving = ref(false)
 const isSaved = ref(false)
 
-// 答题明细默认显隐状态逻辑 (≤ 20 题默认勾选，否则默认不勾选)
-const includeDetails = ref(false)
+// 危机预警弹窗本次页面生命周期只弹一次标志
+const crisisAlertShown = ref(false)
 
 // 批量测评数据结构
 const batchResults = ref<any[]>([])
 const selectedBatchIndex = ref(0)
 const isBatch = computed(() => !!route.query.batchIds)
 
+const scaleLoadError = ref(false)
+
 const scale = computed(() => {
-  if (isBatch.value && batchResults.value.length > 0) {
-    const scaleId = batchResults.value[selectedBatchIndex.value]?.scaleId
-    return scaleStore.getScaleById(scaleId)
+  try {
+    let scaleObj = null
+    if (isBatch.value && batchResults.value.length > 0) {
+      const scaleId = batchResults.value[selectedBatchIndex.value]?.scaleId
+      scaleObj = scaleStore.getScaleById(scaleId)
+    } else {
+      scaleObj = testStore.currentScale
+    }
+    
+    const recordId = result.value?.id || null
+    const scaleId = scaleObj?.id || batchResults.value[selectedBatchIndex.value]?.scaleId || testStore.result?.scaleId || '未知'
+    console.log('[报告页] 加载', { recordId, scaleId, hasScale: !!scaleObj })
+
+    if (!scaleObj) {
+      scaleLoadError.value = true
+    } else {
+      scaleLoadError.value = false
+    }
+
+    return scaleObj
+  } catch (err: any) {
+    console.error('[报告页] 加载量表失败，进入错误边界:', err)
+    scaleLoadError.value = true
+    
+    // 如果 ResultView 有全局 loading / modal / 遮罩层，在 catch 里确保关闭
+    saving.value = false
+    crisisSubmitting.value = false
+    crisisModalVisible.value = false
+    
+    return null
   }
-  return testStore.currentScale
 })
+
+// 答题明细默认显隐状态逻辑 (≤ 20 题默认勾选，否则默认不勾选)
+const includeDetails = ref(false)
 
 // 强制转型为 any 规避 typescript unknown 校验
 const result = computed<any>(() => {
@@ -55,7 +86,7 @@ const result = computed<any>(() => {
 watch(
   () => scale.value,
   (newScale) => {
-    if (newScale && newScale.questions) {
+    if (newScale && newScale.questions && newScale.questions.length > 0) {
       includeDetails.value = newScale.questions.length <= 20
     } else {
       includeDetails.value = false
@@ -66,9 +97,9 @@ watch(
 
 // 统一解析答案的 option label
 function getOptionLabel(questionId: any, answerValue: any, answerScore: any) {
-  if (!scale.value || !scale.value.questions) return '/'
+  if (!scale.value || !scale.value.questions || scale.value.questions.length === 0) return '/'
   const q = scale.value.questions.find((item: any) => String(item.id) === String(questionId))
-  if (!q || !q.options) return '/'
+  if (!q || !q.options || q.options.length === 0) return '/'
   
   // 优先通过 score 或 value 匹配
   let opt = q.options.find((o: any) => String(o.value) === String(answerValue))
@@ -94,7 +125,7 @@ const userAge = computed(() => {
 
 // MMPI 效度评估与 T分计算
 const mmpiTValues = computed(() => {
-  if (!scale.value || !scale.value.scoring || scale.value.id.toUpperCase() !== 'MMPI' || !result.value) return null
+  if (!scale.value || !scale.value.id || !scale.value.scoring || scale.value.id.toUpperCase() !== 'MMPI' || !result.value) return null
   const gender = userStore.currentUser?.gender === 'female' ? 'female' : 'male'
   const norms = scale.value.scoring.mmpiConfig?.norms?.[gender] || scale.value.scoring.mmpiConfig?.norms?.male
   if (!norms) return null
@@ -112,7 +143,7 @@ const mmpiTValues = computed(() => {
 })
 
 const mmpiValidity = computed(() => {
-  if (scale.value?.id.toUpperCase() !== 'MMPI' || !result.value || !mmpiTValues.value) return null
+  if (!scale.value || !scale.value.id || scale.value.id.toUpperCase() !== 'MMPI' || !result.value || !mmpiTValues.value) return null
 
   const tL = mmpiTValues.value['L'] || 50
   const tF = mmpiTValues.value['F'] || 50
@@ -138,7 +169,7 @@ const mmpiValidity = computed(() => {
 })
 
 const mmpiHighPoints = computed(() => {
-  if (scale.value?.id.toUpperCase() !== 'MMPI' || !mmpiTValues.value) return null
+  if (!scale.value || !scale.value.id || scale.value.id.toUpperCase() !== 'MMPI' || !mmpiTValues.value) return null
 
   const clinicalScales = ['Hs', 'D', 'Hy', 'Pd', 'Mf', 'Pa', 'Pt', 'Sc', 'Ma', 'Si']
   const scaleLabels: Record<string, string> = {
@@ -189,7 +220,7 @@ const mmpiHighPoints = computed(() => {
 
 // 参考值范围逻辑计算
 const referenceRange = computed(() => {
-  if (!scale.value) return '/'
+  if (!scale.value || !scale.value.id) return '/'
   const idUpper = scale.value.id.toUpperCase()
   if (idUpper === 'SAS') return '< 50'
   if (idUpper === 'SDS') return '< 53'
@@ -238,19 +269,21 @@ const watermarkBgStyle = computed(() => {
 
 // SCL-90 专用指标计算
 const scl90Metrics = computed(() => {
-  if (!scale.value || scale.value.id.toUpperCase() !== 'SCL-90' || !result.value) return null
+  if (!scale.value || !scale.value.id || scale.value.id.toUpperCase() !== 'SCL-90' || !result.value) return null
   
   // 1. 总分
   // SCL-90 各题选项为 1, 2, 3, 4, 5，所以总分为所有回答的分数累加（1-5分）
   let totalScore = 0
   let positiveCount = 0
   
-  ;(result.value.answers || []).forEach((ans: any) => {
-    totalScore += (ans.score || 0)
-    if ((ans.score || 0) >= 2) {
-      positiveCount++ // 阳性项目数：单项得分 >= 2 的项目数
-    }
-  })
+  if (result.value.answers && result.value.answers.length > 0) {
+    result.value.answers.forEach((ans: any) => {
+      totalScore += (ans.score || 0)
+      if ((ans.score || 0) >= 2) {
+        positiveCount++ // 阳性项目数：单项得分 >= 2 的项目数
+      }
+    })
+  }
   
   // 2. 总均分 = 总分 / 90
   const meanScore = totalScore / 90
@@ -264,13 +297,15 @@ const scl90Metrics = computed(() => {
 
 // ASRS-18 ADHD 前 6 题筛查逻辑计算
 const asrsPartAScore = computed(() => {
-  if (!result.value || !scale.value || scale.value.id.toUpperCase() !== 'ASRS-18') return 0
+  if (!result.value || !scale.value || !scale.value.id || scale.value.id.toUpperCase() !== 'ASRS-18') return 0
   // 前 6 题的 ID 分别为 1, 2, 3, 4, 5, 6
   let meetCount = 0
-  for (let i = 1; i <= 6; i++) {
-    const ans = (result.value.answers || []).find((a: any) => String(a.questionId) === String(i))
-    if (ans && (ans.score || 0) >= 2) {
-      meetCount++
+  if (result.value.answers && result.value.answers.length > 0) {
+    for (let i = 1; i <= 6; i++) {
+      const ans = result.value.answers.find((a: any) => String(a.questionId) === String(i))
+      if (ans && (ans.score || 0) >= 2) {
+        meetCount++
+      }
     }
   }
   return meetCount
@@ -301,44 +336,55 @@ watch(
 
 // 维度评分细则数据源
 const dimensionDetailsList = computed(() => {
-  if (!result.value || !scale.value) return []
+  if (!result.value || !scale.value || !scale.value.id) return []
   const list: any[] = []
   const rawDimensions = result.value.dimensionScores || {}
+  const scaleIdUpper = scale.value.id.toUpperCase()
   
-  if (scale.value.scoring?.dimensions) {
+  if (scale.value.scoring?.dimensions && scale.value.scoring.dimensions.length > 0) {
     for (const dimDef of scale.value.scoring.dimensions) {
       const name = dimDef.name
       const score = rawDimensions[name] !== undefined ? rawDimensions[name] : 0
       
-      let conclusion = '正常'
-      let description = '分数处于正常范围'
+      let conclusion = '参考总分结论'
+      let description = '该维度暂无独立分级，请参考总分结论'
+      let color = '#909399'
       
-      if (scale.value.id.toUpperCase() === 'MMPI' && mmpiTValues.value) {
+      if (scaleIdUpper === 'MMPI' && mmpiTValues.value) {
         const tScore = mmpiTValues.value[name] || 50
         conclusion = tScore >= 70 ? '显著升高' : tScore >= 60 ? '轻度升高' : '正常'
         description = `T分数: ${tScore} T. ${conclusion === '显著升高' ? '达到临床显著偏离水平，建议开展临床干预。' : conclusion === '轻度升高' ? '呈轻度升高，建议密切关注。' : '状态良好。'}`
-      } else if ((dimDef as any).cutoffs) {
+        color = conclusion === '显著升高' ? '#F56C6C' : conclusion === '轻度升高' ? '#E6A23C' : '#67C23A'
+      } else if ((dimDef as any).cutoffs && (dimDef as any).cutoffs.length > 0) {
+        let matched = false
         for (const cutoff of (dimDef as any).cutoffs) {
           const min = cutoff.min ?? -Infinity
           const max = cutoff.max ?? Infinity
           if (score >= min && score <= max) {
-            conclusion = cutoff.label || conclusion
-            description = cutoff.description || description
+            conclusion = cutoff.label || '参考总分结论'
+            description = cutoff.description || '该维度暂无独立分级，请参考总分结论'
+            color = cutoff.color || '#67C23A'
+            matched = true
             break
           }
         }
-      } else {
-        if (scale.value.id.toUpperCase() === 'SCL-90') {
-          conclusion = score >= 2 ? '阳性偏高' : '正常'
-          description = score >= 2 ? '因子分均值超过心理健康筛查临界值，提示该因子存在一定症状反应。' : '因子均分在健康常模常态范围。'
+        if (!matched) {
+          conclusion = '参考总分结论'
+          description = '该维度暂无独立分级，请参考总分结论'
+          color = '#909399'
         }
+      } else if (scaleIdUpper === 'SCL-90') {
+        conclusion = score >= 4 ? '重度' : score >= 3 ? '中度' : score >= 2 ? '轻度' : '正常'
+        description = score >= 2 ? '因子分均值超过心理健康筛查临界值，提示该因子存在一定症状反应。' : '因子均分在健康常模常态范围。'
+        color = conclusion === '重度' ? '#F56C6C' : (conclusion === '中度' || conclusion === '轻度') ? '#E6A23C' : '#67C23A'
       }
       
       list.push({
         name,
         score: typeof score === 'number' ? score : 0,
         conclusion,
-        description: (dimDef as any).description || description
+        description,
+        color
       })
     }
   } else {
@@ -346,8 +392,9 @@ const dimensionDetailsList = computed(() => {
       list.push({
         name,
         score: typeof score === 'number' ? score : 0,
-        conclusion: '正常',
-        description: '分数在正常常模范围'
+        conclusion: '参考总分结论',
+        description: '该维度暂无独立分级，请参考总分结论',
+        color: '#909399'
       })
     }
   }
@@ -507,6 +554,10 @@ const dimensionChartOption = computed<any>(() => {
 })
 
 async function saveResult() {
+  if (isSaved.value) {
+    console.log('[saveResult] 已保存，跳过')
+    return
+  }
   if (!result.value) return
   if (!userStore.currentUser) {
     ElMessage.warning('没有选中当前用户，无法保存结果。请先返回首页选择/创建用户。')
@@ -757,8 +808,8 @@ async function exportExcel() {
 
     // 准备答题明细
     const detailHeaders = ['题号', '题目内容', '选择选项', '选项得分']
-    const detailRows = (result.value.answers || []).map((ans: any) => {
-      const q = scale.value?.questions ? scale.value.questions.find(item => String(item.id) === String(ans.questionId)) : undefined
+    const detailRows = (result.value.answers && result.value.answers.length > 0) ? result.value.answers.map((ans: any) => {
+      const q = (scale.value?.questions && scale.value.questions.length > 0) ? scale.value.questions.find(item => String(item.id) === String(ans.questionId)) : undefined
       const opt = q?.options ? q.options.find(o => String(o.value) === String(ans.value)) : undefined
       return [
         ans.questionId,
@@ -766,7 +817,7 @@ async function exportExcel() {
         opt?.label || ans.value,
         Number(ans.score || 0)
       ]
-    })
+    }) : []
 
     // 创建 worksheet
     const wsData = [
@@ -867,6 +918,7 @@ const isCrisisAlert = computed(() => {
 
 async function checkAndHandleCrisisAlert() {
   if (!result.value || !isCrisisAlert.value) return
+  if (crisisAlertShown.value) return
   
   const testId = result.value.id
   // 允许在没保存时也弹窗，但如果是已经保存的，查一下是否已处理
@@ -884,6 +936,7 @@ async function checkAndHandleCrisisAlert() {
       console.error('Check crisis alert error:', err)
     }
   }
+  crisisAlertShown.value = true
   crisisModalVisible.value = true
 }
 
@@ -958,6 +1011,17 @@ watch(crisisModalVisible, (val) => {
 
 <template>
   <div class="result-view">
+  <!-- 友好提示区域，当且仅当量表加载失败/缺失时显示 -->
+  <div v-if="scaleLoadError" class="no-print" style="margin-bottom: 16px;">
+    <el-alert
+      title="量表文件缺失，仅显示原始得分"
+      type="error"
+      description="无法加载量表的完整配置，目前仅提供原始作答得分的浏览，左侧导航栏等基础导航不受影响。"
+      show-icon
+      :closable="false"
+    />
+  </div>
+
   <!-- 检查报告单风格容器（仅在打印时，或通过 print 样式强行接管时呈现） -->
   <div class="medical-report-print" v-if="result && scale" style="position: relative;">
     <!-- 水印遮罩 (打印版) -->
@@ -1180,7 +1244,7 @@ watch(crisisModalVisible, (val) => {
             <td style="padding: 4px; border: 1px solid #ddd; text-align: left; font-weight: bold;">{{ dim.name }}</td>
             <td style="padding: 4px; border: 1px solid #ddd; font-weight: bold; color: #409eff;">{{ dim.score.toFixed(1) }} 分</td>
             <td style="padding: 4px; border: 1px solid #ddd;">
-              <span :style="{ color: dim.conclusion.includes('升高') || dim.conclusion.includes('偏高') ? '#F56C6C' : '#67C23A', fontWeight: 'bold' }">
+              <span :style="{ color: dim.color || '#333', fontWeight: 'bold' }">
                 {{ dim.conclusion }}
               </span>
             </td>
@@ -1205,7 +1269,7 @@ watch(crisisModalVisible, (val) => {
     </div>
 
     <!-- 答题明细清单作为附录（第三区块，移至最末尾，可通过包含答题明细复选框控制） -->
-    <div v-if="includeDetails" class="report-section-card" style="margin-top: 16px; border: 1px solid #ddd; padding: 10px; border-radius: 4px; page-break-inside: avoid;">
+    <div v-if="includeDetails && result && result.answers && result.answers.length > 0" class="report-section-card" style="margin-top: 16px; border: 1px solid #ddd; padding: 10px; border-radius: 4px; page-break-inside: avoid;">
       <div style="font-size: 12px; color: #909399; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 8px;">
         附录：答题明细
       </div>
@@ -1222,7 +1286,7 @@ watch(crisisModalVisible, (val) => {
           <tr v-for="answer in result.answers" :key="answer.questionId" style="border-bottom: 1px solid #eee;">
             <td style="padding: 4px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #000;">{{ answer.questionId }}</td>
             <td style="padding: 4px; border: 1px solid #ddd; color: #000;">
-              {{ scale.questions ? scale.questions.find(q => String(q.id) === String(answer.questionId))?.text || '-' : '-' }}
+              {{ (scale && scale.questions && scale.questions.length > 0) ? (scale.questions.find(q => String(q.id) === String(answer.questionId))?.text || '-') : '-' }}
             </td>
             <td style="padding: 4px; border: 1px solid #ddd; text-align: center; color: #000;">
               {{ getOptionLabel(answer.questionId, answer.value, answer.score) }}
@@ -1311,9 +1375,9 @@ watch(crisisModalVisible, (val) => {
       />
 
       <!-- 结果总览 -->
-      <div class="result-overview" :style="scale.id.toUpperCase() === 'MMPI' ? { gridTemplateColumns: '1fr' } : {}">
+      <div class="result-overview" :style="(scale && scale.id && scale.id.toUpperCase() === 'MMPI') ? { gridTemplateColumns: '1fr' } : {}">
         <!-- SCL-90 自定义结果分数展示面板 -->
-        <el-card class="score-card" v-if="scale.id.toUpperCase() === 'SCL-90'">
+        <el-card class="score-card" v-if="scale && scale.id && scale.id.toUpperCase() === 'SCL-90'">
           <div style="display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; padding: 12px 0;">
             <div style="display: flex; gap: 40px; justify-content: center; width: 100%;">
               <div style="text-align: center;">
@@ -1346,7 +1410,7 @@ watch(crisisModalVisible, (val) => {
           </div>
         </el-card>
 
-        <el-card class="score-card" v-else-if="scale.id.toUpperCase() !== 'MMPI'">
+        <el-card class="score-card" v-else-if="scale && scale.id && scale.id.toUpperCase() !== 'MMPI'">
           <div class="score-value" :style="{ color: result.interpretation?.color || '#303133' }">
             {{ result.stdScore.toFixed(1) }}
           </div>
@@ -1361,22 +1425,22 @@ watch(crisisModalVisible, (val) => {
           </el-tag>
         </el-card>
 
-        <el-card class="info-card" :style="scale.id.toUpperCase() === 'MMPI' ? { gridColumn: 'span 2' } : {}">
+        <el-card class="info-card" :style="(scale && scale.id && scale.id.toUpperCase() === 'MMPI') ? { gridColumn: 'span 2' } : {}">
           <div class="info-row">
             <span class="info-label">量表</span>
-            <span class="info-value">{{ scale.id }} {{ scale.name }}</span>
+            <span class="info-value">{{ scale ? `${scale.id} ${scale.name}` : (result?.scaleName || result?.scaleId || '未知量表') }}</span>
           </div>
           <div class="info-row" v-if="userStore.currentUser">
             <span class="info-label">被试用户</span>
             <span class="info-value">{{ userStore.currentUser.name }}</span>
           </div>
-          <div class="info-row">
+          <div class="info-row" v-if="result && result.duration">
             <span class="info-label">用时</span>
             <span class="info-value">{{ Math.floor(result.duration / 60) }}分{{ result.duration % 60 }}秒</span>
           </div>
-          <div class="info-row">
+          <div class="info-row" v-if="result && result.answers">
             <span class="info-label">作答</span>
-            <span class="info-value">{{ result.answers.length }}/{{ scale.questions.length }} 题</span>
+            <span class="info-value">{{ result.answers.length }}/{{ (scale && scale.questions) ? scale.questions.length : result.answers.length }} 题</span>
           </div>
         </el-card>
       </div>
@@ -1486,7 +1550,10 @@ watch(crisisModalVisible, (val) => {
               </el-table-column>
               <el-table-column prop="conclusion" label="临床结论" width="120">
                 <template #default="{ row }">
-                  <el-tag :type="row.conclusion.includes('升高') || row.conclusion.includes('偏高') ? 'danger' : 'success'">
+                  <el-tag 
+                    :type="row.color === '#909399' ? 'info' : row.color === '#F56C6C' ? 'danger' : row.color === '#E6A23C' ? 'warning' : row.color === '#67C23A' ? 'success' : 'primary'"
+                    :style="row.color && !['#909399', '#F56C6C', '#E6A23C', '#67C23A'].includes(row.color) ? { color: row.color, borderColor: row.color, backgroundColor: row.color + '1a' } : {}"
+                  >
                     {{ row.conclusion }}
                   </el-tag>
                 </template>
@@ -1498,7 +1565,7 @@ watch(crisisModalVisible, (val) => {
       </el-card>
 
       <!-- 网页版答题明细清单作为附录，可通过"包含答题明细"复选框控制显隐 -->
-      <el-card v-if="includeDetails" class="raw-data-card" style="margin-bottom: 16px;">
+      <el-card v-if="includeDetails && result && result.answers && result.answers.length > 0" class="raw-data-card" style="margin-bottom: 16px;">
         <template #header>
           <div style="font-size: 12px; color: #909399; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
             <span>附录：答题明细</span>
@@ -1509,7 +1576,7 @@ watch(crisisModalVisible, (val) => {
           <el-table-column prop="questionId" label="题号" width="80" align="center" />
           <el-table-column label="题目" min-width="250">
             <template #default="{ row }">
-              <span style="font-weight: 500;">{{ scale.questions ? scale.questions.find(q => String(q.id) === String(row.questionId))?.text || '-' : '-' }}</span>
+              <span style="font-weight: 500;">{{ (scale && scale.questions && scale.questions.length > 0) ? (scale.questions.find(q => String(q.id) === String(row.questionId))?.text || '-') : '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="被试反应" min-width="150" align="center">
@@ -1614,9 +1681,12 @@ watch(crisisModalVisible, (val) => {
 
 <style scoped>
 .result-view {
-  max-width: 900px;
+  min-width: 900px;
+  max-width: 1400px;
+  width: 90%;
   margin: 0 auto;
   padding: 24px;
+  box-sizing: border-box;
 }
 
 .result-header {
@@ -1639,6 +1709,23 @@ watch(crisisModalVisible, (val) => {
 .header-actions {
   display: flex;
   gap: 8px;
+}
+
+@media (max-width: 1200px) {
+  .result-header {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .header-left {
+    flex-wrap: wrap;
+  }
+  .header-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .header-actions > * {
+    flex-shrink: 0;
+  }
 }
 
 .result-overview {
@@ -1857,6 +1944,13 @@ watch(crisisModalVisible, (val) => {
 
 /* 打印时强制定制显示 */
 @media print {
+  .result-view {
+    min-width: auto !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
   .result-container.no-print {
     display: none !important;
   }

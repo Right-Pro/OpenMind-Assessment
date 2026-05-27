@@ -384,6 +384,7 @@ function initDatabase() {
       status TEXT DEFAULT 'completed',
       answer_behavior TEXT, -- JSON string
       cutoff_snapshot TEXT, -- JSON string
+      crisis_alert_shown INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now', 'localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
@@ -492,6 +493,12 @@ function initDatabase() {
 
   try {
     db.exec("ALTER TABLE tests ADD COLUMN cutoff_snapshot TEXT")
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  try {
+    db.exec("ALTER TABLE tests ADD COLUMN crisis_alert_shown INTEGER DEFAULT 0")
   } catch (e) {
     // Column already exists, ignore
   }
