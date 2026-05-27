@@ -784,12 +784,18 @@ onMounted(async () => {
     return
   }
   
+  // 进入答题页面，添加隐藏自定义标题栏的 class
+  document.body.classList.add('hide-titlebar')
+  
   // 进入答题界面，通过 IPC 禁用窗口控制按钮，并进入全屏/沉浸模式
   if (window.electronAPI) {
-    if (typeof window.electronAPI.enterKiosk === 'function') {
-      await window.electronAPI.enterKiosk()
-    } else if (typeof window.electronAPI.enterImmersive === 'function') {
+    // 答题页特殊处理（保持现有逻辑）：发送 IPC 'test:enter-immersive'
+    // 任务要求 3：TestView.vue onMounted：发送 IPC 'test:enter-immersive'
+    // 这里我们除了之前的 check，更应明确触发 'test:enter-immersive'（即 enterImmersive）
+    if (typeof window.electronAPI.enterImmersive === 'function') {
       await window.electronAPI.enterImmersive()
+    } else if (typeof window.electronAPI.enterKiosk === 'function') {
+      await window.electronAPI.enterKiosk()
     } else if (typeof window.electronAPI.windowDisableControls === 'function') {
       await window.electronAPI.windowDisableControls()
     }
@@ -812,12 +818,15 @@ onBeforeUnmount(async () => {
   window.removeEventListener('keydown', handleKeydown)
   window.removeEventListener('shortcut-save-submit', handleShortcutSaveSubmit)
   
+  // 退出答题页面，移除隐藏自定义标题栏的 class
+  document.body.classList.remove('hide-titlebar')
+  
   // 退出答题界面，通过 IPC 恢复窗口控制按钮，并退出全屏/沉浸模式
   if (window.electronAPI) {
-    if (typeof window.electronAPI.exitKiosk === 'function') {
-      await window.electronAPI.exitKiosk()
-    } else if (typeof window.electronAPI.exitImmersive === 'function') {
+    if (typeof window.electronAPI.exitImmersive === 'function') {
       await window.electronAPI.exitImmersive()
+    } else if (typeof window.electronAPI.exitKiosk === 'function') {
+      await window.electronAPI.exitKiosk()
     } else if (typeof window.electronAPI.windowEnableControls === 'function') {
       await window.electronAPI.windowEnableControls()
     }

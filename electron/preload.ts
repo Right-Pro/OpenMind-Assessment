@@ -69,5 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enterImmersive: () => ipcRenderer.invoke('test:enter-immersive'),
   exitImmersive: () => ipcRenderer.invoke('test:exit-immersive'),
   enterKiosk: () => ipcRenderer.invoke('test:enter-kiosk'),
-  exitKiosk: () => ipcRenderer.invoke('test:exit-kiosk')
+  exitKiosk: () => ipcRenderer.invoke('test:exit-kiosk'),
+  getScalesPath: () => ipcRenderer.invoke('get-scales-path'),
+  checkUpdate: () => ipcRenderer.invoke('check-update')
 })

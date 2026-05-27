@@ -12,12 +12,64 @@ const ajv = new Ajv({ allErrors: true })
 // 获取用户数据目录
 const getUserDataPath = () => app.getPath('userData')
 
-// 获取 scales 目录路径（开发时用项目目录，打包后用 extraResources）
-const getScalesDir = () => {
+// 获取用户量表目录和安装包量表内置目录的函数，实现合并与持久化存储
+const getUserScalesDir = () => {
+  if (app.isPackaged) {
+    return path.join(app.getPath('userData'), 'scales')
+  }
+  // 开发环境回退：避免污染 %APPDATA%，使用项目根目录下的 user-scales
+  return path.join(__dirname, '..', '..', 'user-scales')
+}
+
+const getBundledScalesDir = () => {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'resources', 'scales')
   }
-  return path.join(__dirname, '..', 'resources', 'scales')
+  // 开发环境回退：使用项目根目录下的 resources/scales
+  return path.join(__dirname, '..', '..', 'resources', 'scales')
+}
+
+// 统一对外返回用户量表目录路径
+const getScalesDir = () => {
+  return getUserScalesDir()
+}
+
+// 初始化并合并量表到用户目录
+function initAndMergeScales() {
+  const userScalesDir = getUserScalesDir()
+  const bundledScalesDir = getBundledScalesDir()
+
+  console.log('Initializing scales directory migration...')
+  console.log(`User scales directory: ${userScalesDir}`)
+  console.log(`Bundled scales directory: ${bundledScalesDir}`)
+
+  // 1. 确保用户目录存在
+  if (!fs.existsSync(userScalesDir)) {
+    fs.mkdirSync(userScalesDir, { recursive: true })
+  }
+
+  // 2. 确保内置目录存在，以便读取
+  if (fs.existsSync(bundledScalesDir)) {
+    const files = fs.readdirSync(bundledScalesDir).filter(f => f.endsWith('.json'))
+    for (const file of files) {
+      const srcPath = path.join(bundledScalesDir, file)
+      const destPath = path.join(userScalesDir, file)
+      
+      if (!fs.existsSync(destPath)) {
+        try {
+          fs.copyFileSync(srcPath, destPath)
+          console.log(`Copied new bundled scale: ${file} to ${userScalesDir}`)
+        } catch (err) {
+          console.error(`Failed to copy scale ${file}:`, err)
+        }
+      } else {
+        // 已存在同名文件，跳过，绝不覆盖以防清理用户已有或修改的量表（包括版权量表）
+        console.log(`Skipped existing scale: ${file}`)
+      }
+    }
+  } else {
+    console.warn(`Bundled scales directory does not exist: ${bundledScalesDir}`)
+  }
 }
 
 // 密码与加密存储相关
@@ -827,6 +879,123 @@ ipcMain.handle('window-close', () => {
   mainWindow?.close()
 })
 
+// 新增 IPC 通道 'check-update'
+import { net } from 'electron'
+
+ipcMain.handle('check-update', async () => {
+  return new Promise((resolve) => {
+    let responded = false
+    const handleResponse = (data: any) => {
+      if (!responded) {
+        responded = true
+        resolve(data)
+      }
+    }
+
+    const request = net.request({
+      url: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom',
+      method: 'GET'
+    })
+
+    // 设置 10 秒超时
+    const timeoutTimer = setTimeout(() => {
+      request.abort()
+      handleResponse({ error: '网络错误' })
+    }, 10000)
+
+    request.on('response', (response) => {
+      if (response.statusCode !== 200) {
+        clearTimeout(timeoutTimer)
+        handleResponse({ error: '网络错误' })
+        return
+      }
+
+      let dataBuffer = Buffer.alloc(0)
+      response.on('data', (chunk) => {
+        dataBuffer = Buffer.concat([dataBuffer, chunk])
+      })
+
+      response.on('end', () => {
+        clearTimeout(timeoutTimer)
+        try {
+          const xmlText = dataBuffer.toString('utf8')
+          
+          // 简易的 XML 解析（不能用 DOMParser 在 Node 环境中）
+          // 解析第一个 <entry> 的内容
+          const entryMatch = xmlText.match(/<entry>([\s\S]*?)<\/entry>/)
+          if (!entryMatch) {
+            handleResponse({ error: '网络错误' })
+            return
+          }
+          const entryContent = entryMatch[1]
+
+          // 解析 <title>
+          const titleMatch = entryContent.match(/<title>([\s\S]*?)<\/title>/)
+          if (!titleMatch) {
+            handleResponse({ error: '网络错误' })
+            return
+          }
+          const titleText = titleMatch[1].trim()
+
+          // 版本号提取正则：/v?([\d.]+)/ （兼容带 v 和不带 v 两种格式）
+          const versionMatch = titleText.match(/v?([\d.]+)/)
+          if (!versionMatch) {
+            handleResponse({ error: '网络错误' })
+            return
+          }
+          const latestVersion = versionMatch[1]
+
+          // 取 <content> 或 <summary> 文本作为 Release Notes
+          let notesText = ''
+          const contentMatch = entryContent.match(/<content[^>]*>([\s\S]*?)<\/content>/)
+          const summaryMatch = entryContent.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)
+          if (contentMatch) {
+            notesText = contentMatch[1]
+          } else if (summaryMatch) {
+            notesText = summaryMatch[1]
+          }
+
+          // HTML 实体解码并取前 200 字
+          const decodeHtmlEntities = (str: string) => {
+            return str
+              .replace(/</g, '<')
+              .replace(/>/g, '>')
+              .replace(/&/g, '&')
+              .replace(/"/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/'/g, "'")
+              .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1') // CDATA 标签处理
+          }
+
+          // 去除任何 XML 标签
+          let cleanText = decodeHtmlEntities(notesText)
+          cleanText = cleanText.replace(/<\/?[^>]+(>|$)/g, "").trim()
+
+          if (cleanText.length > 200) {
+            cleanText = cleanText.slice(0, 200) + '...'
+          }
+
+          handleResponse({ latestVersion, releaseNotes: cleanText })
+        } catch (err) {
+          handleResponse({ error: '网络错误' })
+        }
+      })
+
+      response.on('error', () => {
+        clearTimeout(timeoutTimer)
+        handleResponse({ error: '网络错误' })
+      })
+    })
+
+    request.on('error', (err) => {
+      clearTimeout(timeoutTimer)
+      handleResponse({ error: '网络错误' })
+    })
+
+    request.end()
+  })
+})
+
 ipcMain.handle('window:disable-controls', () => {
   if (!mainWindow) return
   mainWindow.setFullScreen(true)
@@ -1042,6 +1211,7 @@ ipcMain.handle('scan-scales', async () => scanScales())
 ipcMain.handle('import-scale', async (_, filePath: string) => importScale(filePath))
 ipcMain.handle('open-scales-dir', async () => openScalesDir())
 ipcMain.handle('save-scale', async (_, scaleJson) => saveScale(scaleJson))
+ipcMain.handle('get-scales-path', async () => getUserScalesDir())
 
 // 测评套餐 IPC 处理
 ipcMain.handle('get-packages', async () => {
@@ -1734,7 +1904,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     show: false, // 配合 maximize 先隐藏以防闪烁
-    frame: true,
+    frame: false,
     icon: path.join(__dirname, '../build/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -1759,10 +1929,16 @@ function createWindow() {
     const isCtrlShiftI = (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i'
     const isCmdOptionI = input.meta && input.alt && input.key.toLowerCase() === 'i'
     
-    // 如果不是开发环境，或者不是 Ctrl+Shift+I/Cmd+Option+I 在开发模式下，阻止默认行为
-    if (!app.isPackaged && (isCtrlShiftI || isCmdOptionI)) {
-      // 允许在开发模式下通过 Ctrl+Shift+I 打开开发者工具
-      return
+    // 开发模式下允许使用快捷键 (包括 F12) 打开 DevTools
+    if (!app.isPackaged) {
+      if (input.key === 'F12') {
+        mainWindow?.webContents.toggleDevTools()
+        event.preventDefault()
+        return
+      }
+      if (isCtrlShiftI || isCmdOptionI) {
+        return
+      }
     }
 
     if (input.key === 'F12' || isCtrlShiftI || isCmdOptionI) {
@@ -1783,6 +1959,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // 初始化并合并内置量表到用户目录
+  initAndMergeScales()
   initDatabase()
   // 启动自动备份轮询任务
   setupAutoBackupScheduler()

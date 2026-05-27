@@ -577,6 +577,15 @@ async function handleCheckUpdateManual() {
   const pad = (n: number) => String(n).padStart(2, '0')
   const timeStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
   
+  let currentVersion = '1.0.2'
+  if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
+    try {
+      currentVersion = await window.electronAPI.getAppVersion()
+    } catch (e) {
+      console.warn('[ManualUpdate] Failed to get app version from IPC:', e)
+    }
+  }
+
   // 增加缓存逻辑：24小时内不再重复请求（手动点击时也是）
   try {
     const cachedUpdateStr = localStorage.getItem('settings_cached_update_check')
@@ -586,14 +595,7 @@ async function handleCheckUpdateManual() {
       if (Date.now() - cached.lastCheck < hours24) {
         console.log('[ManualUpdate] Using cached update result:', cached.lastResult)
         const latestVersion = cached.lastResult
-        let currentVersion = '1.0.2'
-        if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
-          try {
-            currentVersion = await window.electronAPI.getAppVersion()
-          } catch (e) {
-            console.warn('[ManualUpdate] Failed to get app version from IPC:', e)
-          }
-        }
+        const body = cached.body || ''
         
         lastCheckTime.value = timeStr
         localStorage.setItem('settings_last_check_update_time', timeStr)
@@ -604,12 +606,13 @@ async function handleCheckUpdateManual() {
             detail: {
               latestVersion,
               currentVersion,
-              body: '',
+              body,
               htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
             }
           }))
         } else {
           checkUpdateResult.value = `当前已是最新版本 v${currentVersion}`
+          ElMessage.success(`当前已是最新版本 v${currentVersion}`)
         }
         checkUpdateLoading.value = false
         return
@@ -620,61 +623,30 @@ async function handleCheckUpdateManual() {
   }
 
   try {
-    const res = await fetch('https://github.com/Right-Pro/OpenMind-Assessment/releases.atom', {
-      headers: { 'Cache-Control': 'no-cache' }
-    })
-    if (!res.ok) {
-      throw new Error(`HTTP Error ${res.status}`)
-    }
-    const xmlText = await res.text()
-    // 解析 RSS Atom XML
-    const parser = new DOMParser()
-    const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
-    const firstEntry = xmlDoc.querySelector('entry')
-    if (!firstEntry) {
-      throw new Error('No entry found in release feed')
-    }
-    const titleNode = firstEntry.querySelector('title')
-    if (!titleNode || !titleNode.textContent) {
-      throw new Error('No title found in entry')
-    }
-    const parserError = xmlDoc.querySelector('parsererror')
-    if (parserError) {
-      throw new Error('更新信息解析失败')
+    if (!window.electronAPI || typeof window.electronAPI.checkUpdate !== 'function') {
+      throw new Error('无法连接到更新服务器')
     }
 
-    const titleText = titleNode.textContent // 例如 "OpenMind Assessment v1.0.1"
-    const match = titleText.match(/v([\d.]+)/)
-    if (!match) {
-      throw new Error('更新信息解析失败')
-    }
-    const latestVersion = match[1]
-
-    let currentVersion = '1.0.2'
-    if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
-      try {
-        currentVersion = await window.electronAPI.getAppVersion()
-      } catch (e) {
-        console.warn('[ManualUpdate] Failed to get app version from IPC:', e)
-      }
+    const res = await window.electronAPI.checkUpdate()
+    if (res.error) {
+      // 错误时显示："连接超时" / "无法连接到更新服务器"
+      // 为了符合要求的错误提示
+      throw new Error('连接超时')
     }
 
-    // Extract release notes (content or summary) and clean HTML to plain text
-    const contentNode = firstEntry.querySelector('content') || firstEntry.querySelector('summary')
-    let body = ''
-    if (contentNode && contentNode.textContent) {
-      const htmlText = contentNode.textContent
-      const tempDiv = document.createElement('div')
-      tempDiv.innerHTML = htmlText
-      body = tempDiv.textContent || tempDiv.innerText || ''
-      body = body.trim()
+    if (!res.latestVersion) {
+      throw new Error('暂无更新信息')
     }
 
-    // 写入本地缓存 {lastCheck: timestamp, lastResult: version}
+    const latestVersion = res.latestVersion
+    const body = res.releaseNotes || ''
+
+    // 写入本地缓存 {lastCheck: timestamp, lastResult: version, body: body}
     try {
       localStorage.setItem('settings_cached_update_check', JSON.stringify({
         lastCheck: Date.now(),
-        lastResult: latestVersion
+        lastResult: latestVersion,
+        body: body
       }))
     } catch (e) {
       console.warn('[ManualUpdate] Failed to write cache to localStorage:', e)
@@ -695,15 +667,19 @@ async function handleCheckUpdateManual() {
       }))
     } else {
       checkUpdateResult.value = `当前已是最新版本 v${currentVersion}`
+      ElMessage.success(`当前已是最新版本 v${currentVersion}`)
     }
   } catch (err: any) {
     console.warn('Manual check update failed:', err)
-    if (err.message === '更新信息解析失败') {
-      ElMessage.error('更新信息解析失败')
-      checkUpdateResult.value = '更新信息解析失败'
+    if (err.message === '连接超时') {
+      ElMessage.error('连接超时')
+      checkUpdateResult.value = '连接超时'
+    } else if (err.message === '暂无更新信息') {
+      ElMessage.info('暂无更新信息')
+      checkUpdateResult.value = '暂无更新信息'
     } else {
-      ElMessage.error('无法连接到更新服务器，请检查网络')
-      checkUpdateResult.value = '检查更新失败'
+      ElMessage.error('无法连接到更新服务器')
+      checkUpdateResult.value = '无法连接到更新服务器'
     }
   } finally {
     checkUpdateLoading.value = false

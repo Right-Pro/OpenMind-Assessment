@@ -72,6 +72,8 @@ export interface ElectronAPI {
   exitImmersive: () => Promise<void>
   enterKiosk: () => Promise<void>
   exitKiosk: () => Promise<void>
+  getScalesPath: () => Promise<string>
+  checkUpdate: () => Promise<{ latestVersion?: string; releaseNotes?: string; error?: string }>
 }
 
 declare global {

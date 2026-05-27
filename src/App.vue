@@ -182,6 +182,15 @@ async function triggerAutoUpdateCheck() {
     return
   }
 
+  let currentVersion = '1.0.2'
+  if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
+    try {
+      currentVersion = await window.electronAPI.getAppVersion()
+    } catch (e) {
+      console.warn('[AutoUpdate] Failed to get app version from IPC:', e)
+    }
+  }
+
   // 增加本地缓存校验（24小时内不再重复请求）
   try {
     const cachedUpdateStr = localStorage.getItem('settings_cached_update_check')
@@ -191,14 +200,7 @@ async function triggerAutoUpdateCheck() {
       if (Date.now() - cached.lastCheck < hours24) {
         console.log('[AutoUpdate] Using cached update result:', cached.lastResult)
         const latestVersion = cached.lastResult
-        let currentVersion = '1.0.2'
-        if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
-          try {
-            currentVersion = await window.electronAPI.getAppVersion()
-          } catch (e) {
-            console.warn('[AutoUpdate] Failed to get app version from IPC:', e)
-          }
-        }
+        const body = cached.body || ''
         
         // 检查是否已被用户忽略且在 3 天内
         try {
@@ -220,8 +222,8 @@ async function triggerAutoUpdateCheck() {
           updateInfo.value = {
             latestVersion,
             currentVersion,
-            body: '',
-            htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom'
+            body,
+            htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
           }
           showUpdateDialog.value = true
         }
@@ -233,64 +235,25 @@ async function triggerAutoUpdateCheck() {
   }
 
   try {
-    const res = await fetch('https://github.com/Right-Pro/OpenMind-Assessment/releases.atom', {
-      headers: { 'Cache-Control': 'no-cache' }
-    })
-    if (!res.ok) {
-      console.warn(`[AutoUpdate] GitHub RSS returned status ${res.status}`)
+    if (!window.electronAPI || typeof window.electronAPI.checkUpdate !== 'function') {
       return
     }
-    const xmlText = await res.text()
-    // 解析 RSS Atom XML
-    const parser = new DOMParser()
-    const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
-    const firstEntry = xmlDoc.querySelector('entry')
-    if (!firstEntry) {
-      console.warn('[AutoUpdate] No entry found in release feed')
+
+    const res = await window.electronAPI.checkUpdate()
+    if (res.error || !res.latestVersion) {
+      console.warn(`[AutoUpdate] Check update via IPC failed:`, res.error)
       return
     }
-    const titleNode = firstEntry.querySelector('title')
-    if (!titleNode || !titleNode.textContent) {
-      console.warn('[AutoUpdate] No title found in entry')
-      return
-    }
-    const parserError = xmlDoc.querySelector('parsererror')
-    if (parserError) {
-      throw new Error('更新信息解析失败')
-    }
 
-    const titleText = titleNode.textContent // 例如 "OpenMind Assessment v1.0.1"
-    const match = titleText.match(/v([\d.]+)/)
-    if (!match) {
-      throw new Error('更新信息解析失败')
-    }
-    const latestVersion = match[1]
+    const latestVersion = res.latestVersion
+    const body = res.releaseNotes || ''
 
-    let currentVersion = '1.0.2'
-    if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
-      try {
-        currentVersion = await window.electronAPI.getAppVersion()
-      } catch (e) {
-        console.warn('[AutoUpdate] Failed to get app version from IPC:', e)
-      }
-    }
-
-    // Extract release notes (content or summary) and clean HTML to plain text
-    const contentNode = firstEntry.querySelector('content') || firstEntry.querySelector('summary')
-    let body = ''
-    if (contentNode && contentNode.textContent) {
-      const htmlText = contentNode.textContent
-      const tempDiv = document.createElement('div')
-      tempDiv.innerHTML = htmlText
-      body = tempDiv.textContent || tempDiv.innerText || ''
-      body = body.trim()
-    }
-
-    // 缓存结果到 localStorage，记录 {lastCheck: timestamp, lastResult: version}
+    // 缓存结果到 localStorage，记录 {lastCheck: timestamp, lastResult: version, body: body}
     try {
       localStorage.setItem('settings_cached_update_check', JSON.stringify({
         lastCheck: Date.now(),
-        lastResult: latestVersion
+        lastResult: latestVersion,
+        body: body
       }))
     } catch (e) {
       console.warn('[AutoUpdate] Failed to write cache to localStorage:', e)
@@ -1023,6 +986,11 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
   flex: 1;
   height: 100vh;
   overflow: hidden;
+}
+
+/* 隐藏自定义标题栏的 CSS 样式 */
+.hide-titlebar .答题页控制条 {
+  display: none !important;
 }
 
 /* 答题页隐藏侧栏后的全屏布局逻辑与消除黑条 */
