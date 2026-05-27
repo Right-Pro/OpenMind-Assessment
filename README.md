@@ -25,7 +25,7 @@
 
 市面上心理测评软件要么**贵**（几万到十几万），要么**数据上传服务器**有隐私风险。OpenMind 面向学校心理中心、小型咨询机构和个人执业咨询师，提供**完全免费、完全本地、可自定义**的测评工具。
 
-&gt; "你的被试数据，永远留在你的电脑上。"
+> "你的被试数据，永远留在你的电脑上。"
 
 ## 功能特性
 
@@ -41,22 +41,35 @@
 
 前往 **[Releases](https://github.com/Right-Pro/OpenMind-Assessment/releases)** 页面，下载最新版 `OpenMind Assessment Setup x.x.x.exe`，双击安装即可。
 
-&gt; 系统要求：Windows 10 / Windows 11
+> 系统要求：Windows 10 / Windows 11
 
 ## 内置量表
 
-内置 30+ 免费/学术通用量表，涵盖常见筛查与评估场景：
+内置 38+ 免费/学术通用量表，涵盖常见筛查与评估场景。以下 **6 个为初次使用默认推荐**：
+
+| 量表 | 用途 | 题数 |
+|------|------|------|
+| **PHQ-9** ⭐ | 抑郁筛查（国际金标准） | 9 |
+| **GAD-7** ⭐ | 焦虑筛查（国际金标准） | 7 |
+| **SAS** ⭐ | 焦虑自评（国内常用） | 20 |
+| **SDS** ⭐ | 抑郁自评（国内常用） | 20 |
+| **PSQI** ⭐ | 睡眠质量评估 | 19 |
+| **AIS** ⭐ | 失眠严重程度筛查 | 8 |
+
+**全部量表分类：**
 
 | 类别 | 量表 |
 |------|------|
-| 抑郁筛查 | PHQ-9、GAD-7、GDS-15、CES-D-20 |
-| 焦虑筛查 | SAS、SDS、STAI（如已授权） |
-| 睡眠评估 | PSQI、AIS、ISI |
-| 人格/认知 | BFI-44、BIS-11、RSES |
-| 成瘾筛查 | AUDIT、FTND、CAGE |
-| 其他 | ADL、WHO-5、CGI、SDQ 等 |
+| 抑郁筛查 | PHQ-9、PHQ-15、CES-D-20、GDS-15、SDS、HCL-32、MDQ |
+| 焦虑筛查 | GAD-7、SAS、DASS-21 |
+| 睡眠评估 | PSQI、AIS、ISI、ESS |
+| 成瘾筛查 | AUDIT、DUDIT、CAGE、FTND |
+| 人格/认知 | BFI-44、BIS-11、RSES、SQ |
+| 精神科症状 | SANS、SAPS、CGI、OCI-R、SAD |
+| 儿童/青少年 | SDQ、ASRS-18 |
+| 生活质量/社会支持 | WHO-5、ADL、AAS、CSES、SSRS、SCSQ、SERS、SDS-Sheehan |
 
-&gt; 支持通过**量表编辑器**或 JSON 文件导入自定义量表。
+> 支持通过**量表编辑器**或 JSON 文件导入机构自有量表。
 
 ## 截图
 
