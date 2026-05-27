@@ -1935,6 +1935,11 @@ function createWindow() {
       if (input.key === 'F12' || isCtrlShiftI || isCmdOptionI) {
         event.preventDefault()
       }
+    } else {
+      // 开发环境下，由于 Menu.setApplicationMenu(null) 导致默认快捷键失效，需要手动响应 F12 和 Ctrl+Shift+I / Cmd+Option+I 来打开或关闭 DevTools
+      if (input.type.toLowerCase() === 'keydown' && (input.key === 'F12' || isCtrlShiftI || isCmdOptionI)) {
+        mainWindow?.webContents.toggleDevTools()
+      }
     }
   })
 
