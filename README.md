@@ -1,23 +1,23 @@
-&lt;p align="center"&gt;
-  &lt;img src="https://raw.githubusercontent.com/Right-Pro/OpenMind-Assessment/main/build/icon.png" width="120" alt="OpenMind Logo"&gt;
-&lt;/p&gt;
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Right-Pro/OpenMind-Assessment/main/build/icon.png" width="120" alt="OpenMind Logo">
+</p>
 
-&lt;h1 align="center"&gt;OpenMind Assessment&lt;/h1&gt;
+<h1 align="center">OpenMind Assessment</h1>
 
-&lt;p align="center"&gt;
-  开源、免费、可定制的心理测评系统&lt;br&gt;
+<p align="center">
+  开源、免费、可定制的心理测评系统<br>
   数据完全本地存储 · 支持自定义量表导入 · 内置危机预警
-&lt;/p&gt;
+</p>
 
-&lt;p align="center"&gt;
-  &lt;a href="https://github.com/Right-Pro/OpenMind-Assessment/releases"&gt;
-    &lt;img src="https://img.shields.io/github/v/release/Right-Pro/OpenMind-Assessment?style=flat-square" alt="Release"&gt;
-  &lt;/a&gt;
-  &lt;a href="LICENSE"&gt;
-    &lt;img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square" alt="License"&gt;
-  &lt;/a&gt;
-  &lt;img src="https://img.shields.io/badge/platform-Windows-blue?style=flat-square" alt="Platform"&gt;
-&lt;/p&gt;
+<p align="center">
+  <a href="https://github.com/Right-Pro/OpenMind-Assessment/releases">
+    <img src="https://img.shields.io/github/v/release/Right-Pro/OpenMind-Assessment?style=flat-square" alt="Release">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square" alt="License">
+  </a>
+  <img src="https://img.shields.io/badge/platform-Windows-blue?style=flat-square" alt="Platform">
+</p>
 
 ---
 

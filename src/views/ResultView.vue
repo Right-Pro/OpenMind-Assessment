@@ -27,6 +27,9 @@ const showRawData = ref(false)
 const saving = ref(false)
 const isSaved = ref(false)
 
+// 答题明细默认显隐状态逻辑 (≤ 20 题默认勾选，否则默认不勾选)
+const includeDetails = ref(false)
+
 // 批量测评数据结构
 const batchResults = ref<any[]>([])
 const selectedBatchIndex = ref(0)
@@ -48,9 +51,6 @@ const result = computed<any>(() => {
   return testStore.result
 })
 
-// 答题明细默认显隐状态逻辑 (≤ 20 题默认勾选，否则默认不勾选)
-const includeDetails = ref(false)
-
 // 监听 scale 加载或切换，根据总题数决定默认是否勾选包含答题明细
 watch(
   () => scale.value,
@@ -66,9 +66,9 @@ watch(
 
 // 统一解析答案的 option label
 function getOptionLabel(questionId: any, answerValue: any, answerScore: any) {
-  if (!scale.value) return '/'
+  if (!scale.value || !scale.value.questions) return '/'
   const q = scale.value.questions.find((item: any) => String(item.id) === String(questionId))
-  if (!q) return '/'
+  if (!q || !q.options) return '/'
   
   // 优先通过 score 或 value 匹配
   let opt = q.options.find((o: any) => String(o.value) === String(answerValue))
@@ -94,7 +94,7 @@ const userAge = computed(() => {
 
 // MMPI 效度评估与 T分计算
 const mmpiTValues = computed(() => {
-  if (scale.value?.id.toUpperCase() !== 'MMPI' || !result.value) return null
+  if (!scale.value || !scale.value.scoring || scale.value.id.toUpperCase() !== 'MMPI' || !result.value) return null
   const gender = userStore.currentUser?.gender === 'female' ? 'female' : 'male'
   const norms = scale.value.scoring.mmpiConfig?.norms?.[gender] || scale.value.scoring.mmpiConfig?.norms?.male
   if (!norms) return null
@@ -238,7 +238,7 @@ const watermarkBgStyle = computed(() => {
 
 // SCL-90 专用指标计算
 const scl90Metrics = computed(() => {
-  if (scale.value?.id.toUpperCase() !== 'SCL-90' || !result.value) return null
+  if (!scale.value || scale.value.id.toUpperCase() !== 'SCL-90' || !result.value) return null
   
   // 1. 总分
   // SCL-90 各题选项为 1, 2, 3, 4, 5，所以总分为所有回答的分数累加（1-5分）
@@ -264,7 +264,7 @@ const scl90Metrics = computed(() => {
 
 // ASRS-18 ADHD 前 6 题筛查逻辑计算
 const asrsPartAScore = computed(() => {
-  if (!result.value || scale.value?.id.toUpperCase() !== 'ASRS-18') return 0
+  if (!result.value || !scale.value || scale.value.id.toUpperCase() !== 'ASRS-18') return 0
   // 前 6 题的 ID 分别为 1, 2, 3, 4, 5, 6
   let meetCount = 0
   for (let i = 1; i <= 6; i++) {
@@ -758,8 +758,8 @@ async function exportExcel() {
     // 准备答题明细
     const detailHeaders = ['题号', '题目内容', '选择选项', '选项得分']
     const detailRows = (result.value.answers || []).map((ans: any) => {
-      const q = scale.value?.questions.find(item => String(item.id) === String(ans.questionId))
-      const opt = q?.options.find(o => String(o.value) === String(ans.value))
+      const q = scale.value?.questions ? scale.value.questions.find(item => String(item.id) === String(ans.questionId)) : undefined
+      const opt = q?.options ? q.options.find(o => String(o.value) === String(ans.value)) : undefined
       return [
         ans.questionId,
         q?.text || '',
@@ -1222,7 +1222,7 @@ watch(crisisModalVisible, (val) => {
           <tr v-for="answer in result.answers" :key="answer.questionId" style="border-bottom: 1px solid #eee;">
             <td style="padding: 4px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #000;">{{ answer.questionId }}</td>
             <td style="padding: 4px; border: 1px solid #ddd; color: #000;">
-              {{ scale.questions.find(q => String(q.id) === String(answer.questionId))?.text || '-' }}
+              {{ scale.questions ? scale.questions.find(q => String(q.id) === String(answer.questionId))?.text || '-' : '-' }}
             </td>
             <td style="padding: 4px; border: 1px solid #ddd; text-align: center; color: #000;">
               {{ getOptionLabel(answer.questionId, answer.value, answer.score) }}
@@ -1509,7 +1509,7 @@ watch(crisisModalVisible, (val) => {
           <el-table-column prop="questionId" label="题号" width="80" align="center" />
           <el-table-column label="题目" min-width="250">
             <template #default="{ row }">
-              <span style="font-weight: 500;">{{ scale.questions.find(q => String(q.id) === String(row.questionId))?.text || '-' }}</span>
+              <span style="font-weight: 500;">{{ scale.questions ? scale.questions.find(q => String(q.id) === String(row.questionId))?.text || '-' : '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="被试反应" min-width="150" align="center">

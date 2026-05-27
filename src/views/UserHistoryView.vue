@@ -907,7 +907,8 @@ const scaleOptions = computed(() => {
       id,
       name: hist ? `${hist.scale_id} ${hist.scale_name}` : id,
       count,
-      disabled: count <= 1
+      disabled: false, // 所有条目都是可点击的
+      hasNoTrend: count <= 1
     }
   })
 })
