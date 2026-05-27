@@ -27,6 +27,36 @@ const showRawData = ref(false)
 const saving = ref(false)
 const isSaved = ref(false)
 
+// 答题明细默认显隐状态逻辑 (≤ 20 题默认勾选，否则默认不勾选)
+const includeDetails = ref(false)
+
+// 监听 scale 加载或切换，根据总题数决定默认是否勾选包含答题明细
+watch(
+  () => scale.value,
+  (newScale) => {
+    if (newScale && newScale.questions) {
+      includeDetails.value = newScale.questions.length <= 20
+    } else {
+      includeDetails.value = false
+    }
+  },
+  { immediate: true }
+)
+
+// 统一解析答案的 option label
+function getOptionLabel(questionId: any, answerValue: any, answerScore: any) {
+  if (!scale.value) return '/'
+  const q = scale.value.questions.find((item: any) => String(item.id) === String(questionId))
+  if (!q) return '/'
+  
+  // 优先通过 score 或 value 匹配
+  let opt = q.options.find((o: any) => String(o.value) === String(answerValue))
+  if (!opt) {
+    opt = q.options.find((o: any) => String(o.score) === String(answerScore))
+  }
+  return opt ? opt.label : (answerValue ?? '/')
+}
+
 // 批量测评数据结构
 const batchResults = ref<any[]>([])
 const selectedBatchIndex = ref(0)
@@ -1046,35 +1076,6 @@ watch(crisisModalVisible, (val) => {
         </div>
       </div>
 
-      <!-- 各题得分明细表 (他评量表通常需要逐题展示医生评分) -->
-      <div class="report-section-card" style="margin-top: 12px; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
-        <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 8px;">
-          他评量表逐题评定明细 (Physician Rating Sheet)
-        </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
-          <thead>
-            <tr style="background-color: #f5f7fa; border-bottom: 1.5px solid #aaa;">
-              <th style="padding: 4px 8px; border: 1px solid #ddd; width: 60px; text-align: center;">题号</th>
-              <th style="padding: 4px 8px; border: 1px solid #ddd;">评定题目</th>
-              <th style="padding: 4px 8px; border: 1px solid #ddd; width: 120px; text-align: center;">被试反应</th>
-              <th style="padding: 4px 8px; border: 1px solid #ddd; width: 60px; text-align: center;">医生评分</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="answer in result.answers" :key="answer.questionId" style="border-bottom: 1px solid #eee;">
-              <td style="padding: 4px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;">{{ answer.questionId }}</td>
-              <td style="padding: 4px 8px; border: 1px solid #ddd;">
-                {{ scale.questions.find(q => String(q.id) === String(answer.questionId))?.text || '-' }}
-              </td>
-              <td style="padding: 4px 8px; border: 1px solid #ddd; text-align: center; color: #666;">
-                {{ scale.questions.find(q => String(q.id) === String(answer.questionId))?.options.find(o => String(o.score) === String(answer.score))?.label || '/' }}
-              </td>
-              <td style="padding: 4px 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #409eff;">{{ answer.score }} 分</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
       <!-- 结果解释与分析说明 -->
       <div class="diagnosis-section" style="margin-top: 12px;">
         <div class="section-title" style="font-weight: bold; font-size: 14px;">临床评定解释:</div>
@@ -1158,34 +1159,6 @@ watch(crisisModalVisible, (val) => {
         </table>
       </div>
 
-      <!-- 原始答案折叠表格 -->
-      <div class="report-section-card" style="margin-top: 12px; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
-        <div style="font-weight: bold; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 8px;">
-          答题明细清单 (Response Details)
-        </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 10px; text-align: left;">
-          <thead>
-            <tr style="background-color: #f5f7fa; border-bottom: 1.5px solid #aaa;">
-              <th style="padding: 4px; border: 1px solid #ddd; width: 40px; text-align: center;">题号</th>
-              <th style="padding: 4px; border: 1px solid #ddd;">题目</th>
-              <th style="padding: 4px; border: 1px solid #ddd; width: 80px; text-align: center;">答案</th>
-              <th style="padding: 4px; border: 1px solid #ddd; width: 40px; text-align: center;">得分</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="answer in result.answers" :key="answer.questionId" style="border-bottom: 1px solid #eee;">
-              <td style="padding: 4px; border: 1px solid #ddd; text-align: center;">{{ answer.questionId }}</td>
-              <td style="padding: 4px; border: 1px solid #ddd;">
-                {{ scale.questions.find(q => String(q.id) === String(answer.questionId))?.text || '-' }}
-              </td>
-              <td style="padding: 4px; border: 1px solid #ddd; text-align: center; color: #666;">
-                {{ scale.questions.find(q => String(q.id) === String(answer.questionId))?.options.find(o => String(o.score) === String(answer.score))?.label || '/' }}
-              </td>
-              <td style="padding: 4px; border: 1px solid #ddd; text-align: center; font-weight: bold;">{{ answer.score }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </template>
 
     <!-- 维度评分细则表格 (打印版) -->
@@ -1229,6 +1202,35 @@ watch(crisisModalVisible, (val) => {
         <span>报告/诊断医生：<span style="text-decoration: underline; padding: 0 8px;">{{ reportDoctorInput || '____________' }}</span></span>
         <span>签字盖章：____________________</span>
       </div>
+    </div>
+
+    <!-- 答题明细清单作为附录（第三区块，移至最末尾，可通过包含答题明细复选框控制） -->
+    <div v-if="includeDetails" class="report-section-card" style="margin-top: 16px; border: 1px solid #ddd; padding: 10px; border-radius: 4px; page-break-inside: avoid;">
+      <div style="font-size: 12px; color: #909399; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 6px; margin-bottom: 8px;">
+        附录：答题明细
+      </div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 10px; text-align: left;">
+        <thead>
+          <tr style="background-color: #f5f7fa; border-bottom: 1.5px solid #aaa;">
+            <th style="padding: 4px; border: 1px solid #ddd; width: 40px; text-align: center; color: #000;">题号</th>
+            <th style="padding: 4px; border: 1px solid #ddd; color: #000;">题目</th>
+            <th style="padding: 4px; border: 1px solid #ddd; width: 120px; text-align: center; color: #000;">被试反应</th>
+            <th style="padding: 4px; border: 1px solid #ddd; width: 60px; text-align: center; color: #000;">得分</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="answer in result.answers" :key="answer.questionId" style="border-bottom: 1px solid #eee;">
+            <td style="padding: 4px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #000;">{{ answer.questionId }}</td>
+            <td style="padding: 4px; border: 1px solid #ddd; color: #000;">
+              {{ scale.questions.find(q => String(q.id) === String(answer.questionId))?.text || '-' }}
+            </td>
+            <td style="padding: 4px; border: 1px solid #ddd; text-align: center; color: #000;">
+              {{ getOptionLabel(answer.questionId, answer.value, answer.score) }}
+            </td>
+            <td style="padding: 4px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: #000;">{{ answer.score }}分</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <!-- 免责声明 -->
@@ -1276,24 +1278,25 @@ watch(crisisModalVisible, (val) => {
         查看该用户历史
       </el-button>
       </div>
-        <div class="header-actions">
-          <el-button @click="exportExcel">
-            <el-icon><Download /></el-icon>
-            导出 Excel
-          </el-button>
-          <el-button @click="exportPNG">
-            <el-icon><Picture /></el-icon>
-            分享报告 (PNG)
-          </el-button>
-          <el-button @click="exportPDF">
-            <el-icon><Document /></el-icon>
-            打印报告单
-          </el-button>
-          <el-button type="primary" :loading="saving" :disabled="isSaved" @click="saveResult">
-            <el-icon><Check /></el-icon>
-            {{ isSaved ? '已保存' : '保存结果' }}
-          </el-button>
-        </div>
+      <div class="header-actions">
+        <el-checkbox v-model="includeDetails" label="包含答题明细" style="margin-right: 12px;" />
+        <el-button @click="exportExcel">
+          <el-icon><Download /></el-icon>
+          导出 Excel
+        </el-button>
+        <el-button @click="exportPNG">
+          <el-icon><Picture /></el-icon>
+          分享报告 (PNG)
+        </el-button>
+        <el-button @click="exportPDF">
+          <el-icon><Document /></el-icon>
+          打印报告单
+        </el-button>
+        <el-button type="primary" :loading="saving" :disabled="isSaved" @click="saveResult">
+          <el-icon><Check /></el-icon>
+          {{ isSaved ? '已保存' : '保存结果' }}
+        </el-button>
+      </div>
       </div>
 
       <!-- 警告信息 -->
@@ -1494,25 +1497,31 @@ watch(crisisModalVisible, (val) => {
         </el-collapse>
       </el-card>
 
-      <!-- 原始数据 -->
-      <el-card class="raw-data-card">
+      <!-- 网页版答题明细清单作为附录，可通过"包含答题明细"复选框控制显隐 -->
+      <el-card v-if="includeDetails" class="raw-data-card" style="margin-bottom: 16px;">
         <template #header>
-          <div class="raw-data-header">
-            <span>原始数据</span>
-            <el-button text @click="showRawData = !showRawData">
-              {{ showRawData ? '收起' : '展开' }}
-            </el-button>
+          <div style="font-size: 12px; color: #909399; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
+            <span>附录：答题明细</span>
+            <span style="font-size: 11px; font-weight: normal; color: #909399;">(仅作答明细展示)</span>
           </div>
         </template>
-        <el-table v-if="showRawData" :data="result.answers" size="small">
-          <el-table-column prop="questionId" label="题号" width="80" />
-          <el-table-column label="题目" min-width="200">
+        <el-table :data="result.answers" size="small" style="width: 100%">
+          <el-table-column prop="questionId" label="题号" width="80" align="center" />
+          <el-table-column label="题目" min-width="250">
             <template #default="{ row }">
-              {{ scale.questions.find(q => String(q.id) === String(row.questionId))?.text || '-' }}
+              <span style="font-weight: 500;">{{ scale.questions.find(q => String(q.id) === String(row.questionId))?.text || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="value" label="选项值" width="100" />
-          <el-table-column prop="score" label="得分" width="80" />
+          <el-table-column label="被试反应" min-width="150" align="center">
+            <template #default="{ row }">
+              <span>{{ getOptionLabel(row.questionId, row.value, row.score) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="得分" width="100" align="center">
+            <template #default="{ row }">
+              <span style="font-weight: bold; color: #409eff;">{{ row.score }} 分</span>
+            </template>
+          </el-table-column>
         </el-table>
       </el-card>
 

@@ -18,7 +18,7 @@ const getUserScalesDir = () => {
     return path.join(app.getPath('userData'), 'scales')
   }
   // 开发环境回退：避免污染 %APPDATA%，使用项目根目录下的 user-scales
-  return path.join(__dirname, '..', '..', 'user-scales')
+  return path.join(app.getAppPath(), 'user-scales')
 }
 
 const getBundledScalesDir = () => {
@@ -26,7 +26,7 @@ const getBundledScalesDir = () => {
     return path.join(process.resourcesPath, 'resources', 'scales')
   }
   // 开发环境回退：使用项目根目录下的 resources/scales
-  return path.join(__dirname, '..', '..', 'resources', 'scales')
+  return path.join(app.getAppPath(), 'resources', 'scales')
 }
 
 // 统一对外返回用户量表目录路径
@@ -39,6 +39,7 @@ function initAndMergeScales() {
   const userScalesDir = getUserScalesDir()
   const bundledScalesDir = getBundledScalesDir()
 
+  console.log('[量表目录]', { userScalesDir, bundledScalesDir, env: process.env.NODE_ENV })
   console.log('Initializing scales directory migration...')
   console.log(`User scales directory: ${userScalesDir}`)
   console.log(`Bundled scales directory: ${bundledScalesDir}`)
@@ -1924,29 +1925,20 @@ function createWindow() {
     // It can still be manually toggled via View > Toggle Developer Tools (Ctrl+Shift+I).
   }
 
-  // 确保 F12 和 Ctrl+Shift+I / Cmd+Option+I 开发者工具快捷键失效，且彻底禁用 DevTools 打开 (开发环境下 Ctrl+Shift+I 除外)
+  // 确保在生产环境下 F12 和 Ctrl+Shift+I / Cmd+Option+I 开发者工具快捷键失效，彻底禁用 DevTools
   mainWindow.webContents.on('before-input-event', (event, input) => {
     const isCtrlShiftI = (input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i'
     const isCmdOptionI = input.meta && input.alt && input.key.toLowerCase() === 'i'
     
-    // 开发模式下允许使用快捷键 (包括 F12) 打开 DevTools
-    if (!app.isPackaged) {
-      if (input.key === 'F12') {
-        mainWindow?.webContents.toggleDevTools()
+    // 如果是生产环境，拦截并禁掉开发者工具快捷键
+    if (app.isPackaged) {
+      if (input.key === 'F12' || isCtrlShiftI || isCmdOptionI) {
         event.preventDefault()
-        return
       }
-      if (isCtrlShiftI || isCmdOptionI) {
-        return
-      }
-    }
-
-    if (input.key === 'F12' || isCtrlShiftI || isCmdOptionI) {
-      event.preventDefault()
     }
   })
 
-  // 如果因其它方式打开开发者工具，在非开发模式下立即关闭
+  // 如果因其它方式打开开发者工具，在生产环境下立即关闭
   mainWindow.webContents.on('devtools-opened', () => {
     if (app.isPackaged) {
       mainWindow?.webContents.closeDevTools()

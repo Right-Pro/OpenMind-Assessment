@@ -25,7 +25,7 @@ yarn-error.log*
 # 量表目录（有版权，绝对不能上传 GitHub）
 resources/scales/*
 !resources/scales/.gitkeep
-
+user-scales/
 # 数据库（用户数据，不上传）
 *.db
 *.db-journal
