@@ -821,43 +821,13 @@ const isCrisisAlert = computed(() => {
   let shouldAlert = false
 
   const scaleIdLower = scaleId.toLowerCase()
-  const severityLower = String(severityLabel).toLowerCase()
 
   // 1. scale_id 含 "bss"/"BSS" 且 totalScore > 0
-  if ((scaleIdLower.includes('bss')) && totalScore > 0) {
+  if (scaleIdLower.includes('bss') && totalScore > 0) {
     shouldAlert = true
   }
   // 2. scale_id 含 "cssrs"/"C-SSRS" 且 severity 标签含 "高风险"/"自杀"
   else if ((scaleIdLower.includes('cssrs') || scaleIdLower.includes('c-ssrs')) && (severityLabel.includes('高风险') || severityLabel.includes('自杀'))) {
-    shouldAlert = true
-  }
-  // 3. scale_id 含 "phq9"/"PHQ-9" 且 totalScore >= 20
-  else if ((scaleIdLower.includes('phq9') || scaleIdLower.includes('phq-9')) && totalScore >= 20) {
-    shouldAlert = true
-  }
-  // 4. scale_id 含 "pcl5"/"PCL-5"/"ptsd" 且 (totalScore >= 33 或 severity 含 "阳性")
-  else if ((scaleIdLower.includes('pcl5') || scaleIdLower.includes('pcl-5') || scaleIdLower.includes('ptsd')) && (totalScore >= 33 || severityLabel.includes('阳性'))) {
-    shouldAlert = true
-  }
-  // 5. severity 标签含 "重度"/"严重"/"high"/"critical"/"自杀"/"阳性"
-  else if (
-    severityLabel.includes('重度') ||
-    severityLabel.includes('严重') ||
-    severityLower.includes('high') ||
-    severityLower.includes('critical') ||
-    severityLabel.includes('自杀') ||
-    severityLabel.includes('阳性')
-  ) {
-    shouldAlert = true
-  }
-  // 6. 兜底：severity 不是 "正常"/"无风险"/"阴性"/"低风险"/"未见异常"
-  else if (
-    severityLabel !== '正常' &&
-    severityLabel !== '无风险' &&
-    severityLabel !== '阴性' &&
-    severityLabel !== '低风险' &&
-    severityLabel !== '未见异常'
-  ) {
     shouldAlert = true
   }
 

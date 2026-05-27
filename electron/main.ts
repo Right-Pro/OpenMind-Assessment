@@ -833,6 +833,7 @@ ipcMain.handle('window:disable-controls', () => {
   mainWindow.setClosable(false)
   mainWindow.setMinimizable(false)
   mainWindow.setMaximizable(false)
+  mainWindow.setMenuBarVisibility(false)
   if (process.platform === 'darwin') {
     mainWindow.setWindowButtonVisibility?.(false)
   }
@@ -844,10 +845,59 @@ ipcMain.handle('window:enable-controls', () => {
   mainWindow.setClosable(true)
   mainWindow.setMinimizable(true)
   mainWindow.setMaximizable(true)
+  mainWindow.setMenuBarVisibility(true)
   if (process.platform === 'darwin') {
     mainWindow.setWindowButtonVisibility?.(true)
   }
 })
+
+const handleEnterImmersive = () => {
+  if (!mainWindow) return
+  mainWindow.setFullScreen(true)
+  mainWindow.setClosable(false)
+  mainWindow.setMinimizable(false)
+  mainWindow.setMaximizable(false)
+  mainWindow.setMenuBarVisibility(false)
+  if (process.platform === 'darwin') {
+    mainWindow.setWindowButtonVisibility?.(false)
+  }
+}
+
+const handleExitImmersive = () => {
+  if (!mainWindow) return
+  mainWindow.setFullScreen(false)
+  mainWindow.setClosable(true)
+  mainWindow.setMinimizable(true)
+  mainWindow.setMaximizable(true)
+  mainWindow.setMenuBarVisibility(true)
+  if (process.platform === 'darwin') {
+    mainWindow.setWindowButtonVisibility?.(true)
+  }
+}
+
+ipcMain.handle('test:enter-immersive', handleEnterImmersive)
+ipcMain.on('test:enter-immersive', handleEnterImmersive)
+
+ipcMain.handle('test:exit-immersive', handleExitImmersive)
+ipcMain.on('test:exit-immersive', handleExitImmersive)
+
+const handleEnterKiosk = () => {
+  if (!mainWindow) return
+  mainWindow.setFullScreen(true)
+  mainWindow.setMenuBarVisibility(false)
+}
+
+const handleExitKiosk = () => {
+  if (!mainWindow) return
+  mainWindow.setFullScreen(false)
+  mainWindow.setMenuBarVisibility(true)
+}
+
+ipcMain.handle('test:enter-kiosk', handleEnterKiosk)
+ipcMain.on('test:enter-kiosk', handleEnterKiosk)
+
+ipcMain.handle('test:exit-kiosk', handleExitKiosk)
+ipcMain.on('test:exit-kiosk', handleExitKiosk)
 
 ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false
@@ -1606,6 +1656,10 @@ ipcMain.handle('get-database-path', async () => {
   return path.join(getUserDataPath(), 'openmind.db')
 })
 
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion()
+})
+
 ipcMain.handle('wipe-all-data', async () => {
   if (!db) return { success: false, message: '数据库未打开' }
   try {
@@ -1680,8 +1734,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     show: false, // 配合 maximize 先隐藏以防闪烁
-    frame: false,
-    titleBarStyle: 'hidden',
+    frame: true,
     icon: path.join(__dirname, '../build/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

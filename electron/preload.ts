@@ -64,5 +64,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowClose: () => ipcRenderer.invoke('window-close'),
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
   windowDisableControls: () => ipcRenderer.invoke('window:disable-controls'),
-  windowEnableControls: () => ipcRenderer.invoke('window:enable-controls')
+  windowEnableControls: () => ipcRenderer.invoke('window:enable-controls'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  enterImmersive: () => ipcRenderer.invoke('test:enter-immersive'),
+  exitImmersive: () => ipcRenderer.invoke('test:exit-immersive'),
+  enterKiosk: () => ipcRenderer.invoke('test:enter-kiosk'),
+  exitKiosk: () => ipcRenderer.invoke('test:exit-kiosk')
 })

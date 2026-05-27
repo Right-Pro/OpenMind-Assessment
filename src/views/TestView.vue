@@ -179,6 +179,7 @@ function formatTime(seconds: number): string {
 }
 
 function startTimer() {
+  stopTimer()
   timerInterval.value = window.setInterval(() => {
     if (!isPaused.value) {
       elapsedSeconds.value++
@@ -196,10 +197,12 @@ function stopTimer() {
 function togglePause() {
   isPaused.value = !isPaused.value
   if (isPaused.value) {
+    stopTimer()
     stopSpeaking()
     ElMessage.info('答题已暂停，计时与语音已暂停')
   } else {
     ElMessage.success('答题已恢复')
+    startTimer()
     if (ttsEnabled.value && !showGuide.value) {
       speakCurrentQuestion()
     }
@@ -329,7 +332,8 @@ const resumePackageSessionId = ref<number | null>(null)
 
 async function finishTest() {
   stopTimer()
-  testStore.finishTest()
+  // Ensure the store's duration is set exactly to the elapsedSeconds
+  testStore.duration = elapsedSeconds.value
 
   if (!scale.value) return
   const result = scoreTest(scale.value, testStore.answers, testStore.duration)
@@ -460,6 +464,13 @@ async function finishTest() {
 }
 
 async function saveProgressAndExit() {
+  // Pause the timer before opening the confirm dialog to avoid counting time while the dialog is open.
+  const wasPaused = isPaused.value
+  if (!wasPaused) {
+    isPaused.value = true
+    stopTimer()
+  }
+
   try {
     await ElMessageBox.confirm('保存当前进度并退出？下次可从本题继续', '退出确认', {
       confirmButtonText: '保存并退出',
@@ -532,7 +543,11 @@ async function saveProgressAndExit() {
     testStore.clearTest()
     router.push('/')
   } catch {
-    // 用户取消
+    // 用户取消，恢复计时状态
+    if (!wasPaused) {
+      isPaused.value = false
+      startTimer()
+    }
   }
 }
 
@@ -769,9 +784,15 @@ onMounted(async () => {
     return
   }
   
-  // 进入答题界面，通过 IPC 禁用窗口控制按钮
-  if (window.electronAPI && typeof window.electronAPI.windowDisableControls === 'function') {
-    await window.electronAPI.windowDisableControls()
+  // 进入答题界面，通过 IPC 禁用窗口控制按钮，并进入全屏/沉浸模式
+  if (window.electronAPI) {
+    if (typeof window.electronAPI.enterKiosk === 'function') {
+      await window.electronAPI.enterKiosk()
+    } else if (typeof window.electronAPI.enterImmersive === 'function') {
+      await window.electronAPI.enterImmersive()
+    } else if (typeof window.electronAPI.windowDisableControls === 'function') {
+      await window.electronAPI.windowDisableControls()
+    }
   }
 
   testStore.initTest(scale.value)
@@ -791,9 +812,15 @@ onBeforeUnmount(async () => {
   window.removeEventListener('keydown', handleKeydown)
   window.removeEventListener('shortcut-save-submit', handleShortcutSaveSubmit)
   
-  // 退出答题界面，通过 IPC 恢复窗口控制按钮
-  if (window.electronAPI && typeof window.electronAPI.windowEnableControls === 'function') {
-    await window.electronAPI.windowEnableControls()
+  // 退出答题界面，通过 IPC 恢复窗口控制按钮，并退出全屏/沉浸模式
+  if (window.electronAPI) {
+    if (typeof window.electronAPI.exitKiosk === 'function') {
+      await window.electronAPI.exitKiosk()
+    } else if (typeof window.electronAPI.exitImmersive === 'function') {
+      await window.electronAPI.exitImmersive()
+    } else if (typeof window.electronAPI.windowEnableControls === 'function') {
+      await window.electronAPI.windowEnableControls()
+    }
   }
 })
 
@@ -1344,10 +1371,12 @@ watch(scaleId, (newId) => {
 }
 
 .test-header {
+  height: 90px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 24px;
+  padding: 0 24px;
   background: var(--app-card, #fff);
   border-bottom: 1px solid var(--el-border-color);
   /* 为 macOS titleBarStyle hiddenInset 流量控制灯预留左侧拖拽/安全空间，如果有隐藏侧边栏的全屏需求 */
@@ -1387,6 +1416,7 @@ watch(scaleId, (newId) => {
   color: var(--el-color-primary);
   line-height: 1.2;
   text-align: left;
+  white-space: nowrap;
 }
 
 .header-right-area {
@@ -1419,7 +1449,7 @@ watch(scaleId, (newId) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   padding: 24px;
   position: relative; /* 必须加 relative 使得绝对定位的暂停遮罩层能精准遮蔽本区域 */
   overflow-y: auto;
@@ -1588,7 +1618,8 @@ watch(scaleId, (newId) => {
   width: 100%;
   max-width: 700px;
   padding: 32px;
-  margin: auto;
+  margin: auto 0;
+  box-sizing: border-box;
 }
 
 .question-number {
@@ -1675,7 +1706,9 @@ watch(scaleId, (newId) => {
 .test-footer {
   background: var(--app-card, #fff);
   border-top: 1px solid var(--el-border-color);
-  padding: 16px 24px;
+  padding: 12px 24px;
+  height: 140px;
+  box-sizing: border-box;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -1685,7 +1718,7 @@ watch(scaleId, (newId) => {
   display: flex;
   justify-content: center;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   flex-shrink: 0;
 }
 
@@ -1696,16 +1729,9 @@ watch(scaleId, (newId) => {
   max-width: 800px;
   margin: 0 auto;
   width: 100%;
-  max-height: 35vh;
+  max-height: 80px;
   overflow-y: auto;
   padding-right: 4px; /* offset for scrollbar */
-}
-
-/* 小屏适配：窗口高度较矮时，限制题号区域最大高度为 30vh */
-@media (max-height: 768px) {
-  .question-grid {
-    max-height: 30vh;
-  }
 }
 
 .question-grid.large-scale {

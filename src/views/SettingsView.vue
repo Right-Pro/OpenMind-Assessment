@@ -462,12 +462,21 @@ async function restoreDatabase() {
 
 // 缓存的数据库物理路径，在界面挂载后加载显示给用户
 const databasePhysicalPath = ref('加载中...')
+const displayAppVersion = ref('1.0.2')
 
 onMounted(async () => {
   if (window.electronAPI && typeof window.electronAPI.getDatabasePath === 'function') {
     databasePhysicalPath.value = await window.electronAPI.getDatabasePath()
   } else {
     databasePhysicalPath.value = '纯前端本地模拟模式'
+  }
+  
+  if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
+    try {
+      displayAppVersion.value = await window.electronAPI.getAppVersion()
+    } catch (e) {
+      console.warn('Failed to get app version from IPC:', e)
+    }
   }
 })
 
@@ -577,7 +586,14 @@ async function handleCheckUpdateManual() {
       if (Date.now() - cached.lastCheck < hours24) {
         console.log('[ManualUpdate] Using cached update result:', cached.lastResult)
         const latestVersion = cached.lastResult
-        const currentVersion = '1.0.1' // 与 package.json 保持一致
+        let currentVersion = '1.0.2'
+        if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
+          try {
+            currentVersion = await window.electronAPI.getAppVersion()
+          } catch (e) {
+            console.warn('[ManualUpdate] Failed to get app version from IPC:', e)
+          }
+        }
         
         lastCheckTime.value = timeStr
         localStorage.setItem('settings_last_check_update_time', timeStr)
@@ -589,11 +605,11 @@ async function handleCheckUpdateManual() {
               latestVersion,
               currentVersion,
               body: '',
-              htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom'
+              htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
             }
           }))
         } else {
-          checkUpdateResult.value = '已是最新版本'
+          checkUpdateResult.value = `当前已是最新版本 v${currentVersion}`
         }
         checkUpdateLoading.value = false
         return
@@ -622,13 +638,37 @@ async function handleCheckUpdateManual() {
     if (!titleNode || !titleNode.textContent) {
       throw new Error('No title found in entry')
     }
+    const parserError = xmlDoc.querySelector('parsererror')
+    if (parserError) {
+      throw new Error('更新信息解析失败')
+    }
+
     const titleText = titleNode.textContent // 例如 "OpenMind Assessment v1.0.1"
     const match = titleText.match(/v([\d.]+)/)
     if (!match) {
-      throw new Error(`Could not extract version from title: ${titleText}`)
+      throw new Error('更新信息解析失败')
     }
     const latestVersion = match[1]
-    const currentVersion = '1.0.1' // 与 package.json 保持一致
+
+    let currentVersion = '1.0.2'
+    if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
+      try {
+        currentVersion = await window.electronAPI.getAppVersion()
+      } catch (e) {
+        console.warn('[ManualUpdate] Failed to get app version from IPC:', e)
+      }
+    }
+
+    // Extract release notes (content or summary) and clean HTML to plain text
+    const contentNode = firstEntry.querySelector('content') || firstEntry.querySelector('summary')
+    let body = ''
+    if (contentNode && contentNode.textContent) {
+      const htmlText = contentNode.textContent
+      const tempDiv = document.createElement('div')
+      tempDiv.innerHTML = htmlText
+      body = tempDiv.textContent || tempDiv.innerText || ''
+      body = body.trim()
+    }
 
     // 写入本地缓存 {lastCheck: timestamp, lastResult: version}
     try {
@@ -649,17 +689,22 @@ async function handleCheckUpdateManual() {
         detail: {
           latestVersion,
           currentVersion,
-          body: '',
-          htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom'
+          body,
+          htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
         }
       }))
     } else {
-      checkUpdateResult.value = '已是最新版本'
+      checkUpdateResult.value = `当前已是最新版本 v${currentVersion}`
     }
-  } catch (err) {
+  } catch (err: any) {
     console.warn('Manual check update failed:', err)
-    ElMessage.error('无法连接到更新服务器，请检查网络')
-    checkUpdateResult.value = '检查更新失败'
+    if (err.message === '更新信息解析失败') {
+      ElMessage.error('更新信息解析失败')
+      checkUpdateResult.value = '更新信息解析失败'
+    } else {
+      ElMessage.error('无法连接到更新服务器，请检查网络')
+      checkUpdateResult.value = '检查更新失败'
+    }
   } finally {
     checkUpdateLoading.value = false
   }
@@ -1578,7 +1623,7 @@ async function restoreDefaultShortcuts() {
         </template>
         <el-form label-width="180px">
           <el-form-item label="当前版本">
-            <span style="font-weight: bold;">当前版本：1.0.1</span>
+            <span style="font-weight: bold;">当前版本：v{{ displayAppVersion }}</span>
           </el-form-item>
           <el-form-item label="自动检查更新">
             <el-switch
@@ -1605,7 +1650,7 @@ async function restoreDefaultShortcuts() {
         <template #header>
           <span>关于</span>
         </template>
-        <p><strong>OpenMind Assessment</strong> v1.0.1</p>
+        <p><strong>OpenMind Assessment</strong> v{{ displayAppVersion }}</p>
         <p>开源心理测评系统</p>
         <p>技术栈：Electron + Vue 3 + TypeScript + Element Plus + SQLite</p>
       </el-card>

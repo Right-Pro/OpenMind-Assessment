@@ -324,15 +324,6 @@ async function discardIncompleteTest(item: any) {
                 @click="startScale(scale.id)"
                 style="position: relative;"
               >
-                <!-- 当前适用的小角标，极小且灰色 -->
-                <div
-                  v-if="userStore.currentUser && userStore.currentUser.gender && scale.targetPopulation && (scale.targetPopulation.gender === 'any' || scale.targetPopulation.gender === userStore.currentUser.gender)"
-                  style="position: absolute; top: 8px; right: 8px; z-index: 10;"
-                >
-                  <el-tag size="mini" type="info" style="font-size: 10px; padding: 0 4px; height: 16px; line-height: 14px;">
-                    当前适用
-                  </el-tag>
-                </div>
                 <template #header>
                   <div class="scale-card-header">
                     <span style="font-weight: 600;">{{ scale.id.toUpperCase() }} {{ scale.name }}</span>
@@ -378,15 +369,6 @@ async function discardIncompleteTest(item: any) {
                 @click="startScale(scale.id)"
                 style="position: relative;"
               >
-                <!-- 当前适用的小角标，极小且灰色 -->
-                <div
-                  v-if="userStore.currentUser && userStore.currentUser.gender && scale.targetPopulation && (scale.targetPopulation.gender === 'any' || scale.targetPopulation.gender === userStore.currentUser.gender)"
-                  style="position: absolute; top: 8px; right: 8px; z-index: 10;"
-                >
-                  <el-tag size="mini" type="info" style="font-size: 10px; padding: 0 4px; height: 16px; line-height: 14px;">
-                    当前适用
-                  </el-tag>
-                </div>
                 <template #header>
                   <div class="scale-card-header">
                     <span style="font-weight: 600;">{{ scale.id.toUpperCase() }} {{ scale.name }}</span>

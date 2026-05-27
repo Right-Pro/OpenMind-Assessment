@@ -191,7 +191,14 @@ async function triggerAutoUpdateCheck() {
       if (Date.now() - cached.lastCheck < hours24) {
         console.log('[AutoUpdate] Using cached update result:', cached.lastResult)
         const latestVersion = cached.lastResult
-        const currentVersion = '1.0.1' // 与 package.json 保持一致
+        let currentVersion = '1.0.2'
+        if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
+          try {
+            currentVersion = await window.electronAPI.getAppVersion()
+          } catch (e) {
+            console.warn('[AutoUpdate] Failed to get app version from IPC:', e)
+          }
+        }
         
         // 检查是否已被用户忽略且在 3 天内
         try {
@@ -247,14 +254,37 @@ async function triggerAutoUpdateCheck() {
       console.warn('[AutoUpdate] No title found in entry')
       return
     }
+    const parserError = xmlDoc.querySelector('parsererror')
+    if (parserError) {
+      throw new Error('更新信息解析失败')
+    }
+
     const titleText = titleNode.textContent // 例如 "OpenMind Assessment v1.0.1"
     const match = titleText.match(/v([\d.]+)/)
     if (!match) {
-      console.warn('[AutoUpdate] Could not extract version from title:', titleText)
-      return
+      throw new Error('更新信息解析失败')
     }
     const latestVersion = match[1]
-    const currentVersion = '1.0.1' // 与 package.json 保持一致
+
+    let currentVersion = '1.0.2'
+    if (window.electronAPI && typeof window.electronAPI.getAppVersion === 'function') {
+      try {
+        currentVersion = await window.electronAPI.getAppVersion()
+      } catch (e) {
+        console.warn('[AutoUpdate] Failed to get app version from IPC:', e)
+      }
+    }
+
+    // Extract release notes (content or summary) and clean HTML to plain text
+    const contentNode = firstEntry.querySelector('content') || firstEntry.querySelector('summary')
+    let body = ''
+    if (contentNode && contentNode.textContent) {
+      const htmlText = contentNode.textContent
+      const tempDiv = document.createElement('div')
+      tempDiv.innerHTML = htmlText
+      body = tempDiv.textContent || tempDiv.innerText || ''
+      body = body.trim()
+    }
 
     // 缓存结果到 localStorage，记录 {lastCheck: timestamp, lastResult: version}
     try {
@@ -286,12 +316,12 @@ async function triggerAutoUpdateCheck() {
       updateInfo.value = {
         latestVersion,
         currentVersion,
-        body: '',
-        htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom'
+        body,
+        htmlUrl: 'https://github.com/Right-Pro/OpenMind-Assessment/releases/latest'
       }
       showUpdateDialog.value = true
     }
-  } catch (err) {
+  } catch (err: any) {
     console.warn('[AutoUpdate] Automatic update check failed:', err)
   }
 }

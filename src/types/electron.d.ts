@@ -67,6 +67,11 @@ export interface ElectronAPI {
   windowIsMaximized: () => Promise<boolean>
   windowDisableControls: () => Promise<void>
   windowEnableControls: () => Promise<void>
+  getAppVersion: () => Promise<string>
+  enterImmersive: () => Promise<void>
+  exitImmersive: () => Promise<void>
+  enterKiosk: () => Promise<void>
+  exitKiosk: () => Promise<void>
 }
 
 declare global {
