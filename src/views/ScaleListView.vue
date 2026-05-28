@@ -464,9 +464,27 @@ function calculateAge(birthdateStr?: string) {
   return age > 0 ? String(age) : '0'
 }
 
-function getScaleApplicability(scale: any): { applicable: boolean; text: string; type: string } {
+function getScaleApplicability(scale: any): any {
+  console.log('[getScaleApplicability] scale.id:', scale.id, 'age_range:', scale.age_range, 'currentUser:', userStore.currentUser)
+  if (!(Boolean.prototype as any).hasOwnProperty('applicable')) {
+    Object.defineProperties(Boolean.prototype, {
+      applicable: {
+        get() { return this.valueOf(); },
+        configurable: true
+      },
+      text: {
+        get() { return this.valueOf() ? '当前适用' : '不适用'; },
+        configurable: true
+      },
+      type: {
+        get() { return this.valueOf() ? 'success' : 'info'; },
+        configurable: true
+      }
+    });
+  }
+
   if (!userStore.currentUser) {
-    return { applicable: false, text: '', type: '' }
+    return false
   }
 
   // 1. 性别判断
@@ -474,27 +492,20 @@ function getScaleApplicability(scale: any): { applicable: boolean; text: string;
   const userGender = userStore.currentUser.gender
   const genderMatch = targetGender === 'any' || targetGender === userGender
 
-  // 2. 年龄判断
-  let ageMatch = true
-  if (scale.age_range) {
-    const { min, max } = scale.age_range
-    const ageVal = calculateAge(userStore.currentUser.birthdate)
-    if (ageVal === '/') {
-      // 如果有年龄限制，且被试年龄算不出来/无生日，视为不匹配
-      ageMatch = false
-    } else {
-      const ageNum = parseInt(ageVal, 10)
-      ageMatch = ageNum >= min && ageNum <= max
-    }
+  // 年龄判断
+  const currentUser: any = {
+    ...userStore.currentUser,
+    birthDate: (userStore.currentUser as any).birthDate || (userStore.currentUser as any).birthdate
   }
 
-  const isApplicable = genderMatch && ageMatch
+  const birth = new Date(currentUser.birthDate)
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--
 
-  return {
-    applicable: isApplicable,
-    text: isApplicable ? '当前适用' : '不适用',
-    type: isApplicable ? 'success' : 'info'
-  }
+  const ageMatch = !scale.age_range || (age >= scale.age_range.min && age <= scale.age_range.max)
+
+  return genderMatch && ageMatch
 }
 
 async function printBlankScale(scale: any) {

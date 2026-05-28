@@ -71,5 +71,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enterKiosk: () => ipcRenderer.invoke('test:enter-kiosk'),
   exitKiosk: () => ipcRenderer.invoke('test:exit-kiosk'),
   getScalesPath: () => ipcRenderer.invoke('get-scales-path'),
-  checkUpdate: () => ipcRenderer.invoke('check-update')
+  checkUpdate: () => ipcRenderer.invoke('check-update'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
+  onDownloadProgress: (callback: (percent: number) => void) => {
+    const subscription = (_event: any, percent: number) => callback(percent)
+    ipcRenderer.on('update-download-progress', subscription)
+    return () => {
+      ipcRenderer.removeListener('update-download-progress', subscription)
+    }
+  },
+  onDownloadComplete: (callback: () => void) => {
+    const subscription = () => callback()
+    ipcRenderer.on('update-download-complete', subscription)
+    return () => {
+      ipcRenderer.removeListener('update-download-complete', subscription)
+    }
+  },
+  onDownloadError: (callback: (error: string) => void) => {
+    const subscription = (_event: any, error: string) => callback(error)
+    ipcRenderer.on('update-download-error', subscription)
+    return () => {
+      ipcRenderer.removeListener('update-download-error', subscription)
+    }
+  }
 })

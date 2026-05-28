@@ -1760,18 +1760,53 @@ watch(scaleId, (newId) => {
 }
 
 .option-item.selected {
-  border-color: var(--el-color-primary);
-  background-color: var(--el-color-primary, #409eff);
-  color: #ffffff;
+  border-color: var(--el-color-primary) !important;
+  background: #409eff !important;
+  background-color: #409eff !important;
+  color: #ffffff !important;
+}
+
+.option-item.selected:hover {
+  background: #409eff !important;
+  background-color: #409eff !important;
+  color: #ffffff !important;
 }
 
 .option-item.selected .option-key {
-  background-color: rgba(255, 255, 255, 0.25);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.25) !important;
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+}
+
+.option-item.selected .option-label {
+  color: #ffffff !important;
 }
 
 .option-item.selected .option-hint {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Also specify default light-theme non-eye non-contrast high-specificity rules to prevent overrides */
+.test-view:not(.dark):not(.bg-eye):not(.bg-contrast) .option-item.selected,
+.test-view:not(.dark):not(.bg-eye):not(.bg-contrast) .option-item.selected:hover {
+  border-color: var(--el-color-primary) !important;
+  background: #409eff !important;
+  background-color: #409eff !important;
+  color: #ffffff !important;
+}
+
+.test-view:not(.dark):not(.bg-eye):not(.bg-contrast) .option-item.selected .option-key {
+  background: rgba(255, 255, 255, 0.25) !important;
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+}
+
+.test-view:not(.dark):not(.bg-eye):not(.bg-contrast) .option-item.selected .option-label {
+  color: #ffffff !important;
+}
+
+.test-view:not(.dark):not(.bg-eye):not(.bg-contrast) .option-item.selected .option-hint {
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
 /* Dark mode selected style remains unchanged */
@@ -1783,6 +1818,10 @@ watch(scaleId, (newId) => {
 
 .dark .option-item.selected .option-key {
   background-color: var(--el-fill-color, #1e2a4a) !important;
+  color: var(--app-text, #e0e0e0) !important;
+}
+
+.dark .option-item.selected .option-label {
   color: var(--app-text, #e0e0e0) !important;
 }
 
@@ -1879,6 +1918,27 @@ watch(scaleId, (newId) => {
 .grid-cell.answered {
   background: var(--el-color-success-light-9);
   border-color: var(--el-color-success);
+}
+
+/* Fix high-contrast low visibility for answered active cells in light mode */
+.test-view:not(.dark):not(.bg-eye):not(.bg-contrast) .grid-cell.answered {
+  background-color: #13ce66 !important; /* 使用明亮深绿色 */
+  border-color: #13ce66 !important;
+  color: #ffffff !important;
+}
+
+/* Make sure hovered answered active cells also look crisp */
+.test-view:not(.dark):not(.bg-eye):not(.bg-contrast) .grid-cell.answered:hover {
+  background-color: #0b9e4a !important; /* 更深的纯绿色背景 */
+  border-color: #0b9e4a !important;
+  color: #ffffff !important;
+}
+
+/* If current is also answered, make sure it remains distinctly visible or has primary border/color */
+.test-view:not(.dark):not(.bg-eye):not(.bg-contrast) .grid-cell.answered.current {
+  background-color: var(--el-color-primary) !important;
+  border-color: var(--el-color-primary) !important;
+  color: #ffffff !important;
 }
 
 .grid-cell.marked {

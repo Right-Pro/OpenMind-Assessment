@@ -164,6 +164,102 @@ const updateInfo = ref({
   htmlUrl: ''
 })
 
+// 自动更新下载状态及进度控制
+const downloadStatus = ref<'idle' | 'downloading' | 'completed' | 'failed'>('idle')
+const downloadPercent = ref(0)
+const downloadErrorMsg = ref('')
+
+let unsubscribeProgress: (() => void) | null = null
+let unsubscribeComplete: (() => void) | null = null
+let unsubscribeError: (() => void) | null = null
+
+// 对更新日志进行 XSS 净化和解码，同时只允许 h3/ul/li/strong/br/p 标签
+const sanitizedUpdateBody = computed(() => {
+  const rawBody = updateInfo.value.body || ''
+  
+  // 1. 解码常见的 HTML 转义字符（例如 <h3> -> <h3> 等）
+  let decoded = rawBody
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/&/g, '&')
+    .replace(/"/g, '"')
+    .replace(/'/g, "'")
+    .replace(/&#39;/g, "'")
+  
+  // 2. 简单但严格的标签白名单过滤：只允许 h3, ul, li, strong, br, p
+  // 为了防止 XSS，除了白名单标签外，其他所有 HTML 标签或属性都剥离/转义
+  // 我们使用正则匹配所有标签，不是 h3, /h3, ul, /ul, li, /li, strong, /strong, br, /br, p, /p 的全部过滤掉，或者移除非白名单标签
+  // 且所有白名单标签内不允许带任何属性（比如 onload 等，防止属性注入 XSS）
+  const allowedTags = ['h3', 'ul', 'li', 'strong', 'br', 'p']
+  
+  // 剥离所有属性或危险标签的匹配逻辑
+  // 我们可以通过正则匹配所有的 <...> 标签并按白名单过滤
+  const cleanHtml = decoded.replace(/<(\/?[a-zA-Z0-9]+)([^>]*)>/g, (match, tagName, attrs) => {
+    const isEndTag = tagName.startsWith('/')
+    const pureTagName = isEndTag ? tagName.slice(1).toLowerCase() : tagName.toLowerCase()
+    
+    if (allowedTags.includes(pureTagName)) {
+      // 白名单标签：只保留标签名本身，丢弃任何属性 (attrs)，防止 javascript: 协议或 onload 等 XSS 攻击
+      return isEndTag ? `</${pureTagName}>` : `<${pureTagName}>`
+    }
+    // 非白名单标签：直接移去/忽略该标签
+    return ''
+  })
+  
+  // 3. 截取前 300 个字符的文本内容。如果直接截取 HTML 可能会破坏标签结构，
+  // 所以我们可以提取纯文本计长度，若纯文本 > 300 则在最后的闭合标签前或文本末尾加上省略号，
+  // 或者对 cleanHtml 简单截断（这里我们直接对 cleanHtml 做简单长度保护，以防超长）。
+  // 为了不破坏 HTML 标签闭合，我们这里可以用一个简单安全的截断：
+  // 遍历 HTML，只对非 HTML 标签的纯文本部分进行计数，当总文本字数达到 300 时截断，并合理闭合标签。
+  let textLength = 0
+  let truncatedHtml = ''
+  let inTag = false
+  let currentTag = ''
+  const openTags: string[] = []
+  
+  for (let i = 0; i < cleanHtml.length; i++) {
+    const char = cleanHtml[i]
+    if (char === '<') {
+      inTag = true
+      currentTag = ''
+      truncatedHtml += char
+    } else if (char === '>') {
+      inTag = false
+      truncatedHtml += char
+      if (currentTag.startsWith('/')) {
+        const index = openTags.lastIndexOf(currentTag.slice(1))
+        if (index !== -1) {
+          openTags.splice(index, 1)
+        }
+      } else if (!currentTag.endsWith('/')) {
+        openTags.push(currentTag)
+      }
+    } else if (inTag) {
+      currentTag += char
+      truncatedHtml += char
+    } else {
+      textLength++
+      if (textLength <= 300) {
+        truncatedHtml += char
+      } else {
+        // 达到 300 个纯文本字符，加上省略号并跳出循环
+        truncatedHtml += '...'
+        break
+      }
+    }
+  }
+  
+  // 补全所有未闭合的白名单标签
+  while (openTags.length > 0) {
+    const tag = openTags.pop()
+    if (tag && tag !== 'br') {
+      truncatedHtml += `</${tag}>`
+    }
+  }
+  
+  return truncatedHtml
+})
+
 function handleOpenUpdateDialogEvent(e: CustomEvent) {
   if (e.detail) {
     updateInfo.value = {
@@ -290,6 +386,7 @@ async function triggerAutoUpdateCheck() {
 }
 
 function handleIgnoreUpdate() {
+  // 如果正在下载，不允许关闭或稍后提醒（或者看用户习惯，一般非强行情况下允许，但最好还是可以继续在后台）
   try {
     localStorage.setItem('settings_ignored_update_version', JSON.stringify({
       ignoredVersion: updateInfo.value.latestVersion,
@@ -301,26 +398,71 @@ function handleIgnoreUpdate() {
   showUpdateDialog.value = false
 }
 
-function handleDownloadUpdate() {
-  if (window.electronAPI && typeof window.electronAPI.showOpenDialog === 'function') {
-    // 使用 electron shell 打开浏览器
-    // 在主进程中或直接通过 exposeInMainWorld
-    // electron/preload.ts 里我们没有暴露 shell 模块，但是我们可以查看 window.electronAPI。
-    // 如果没有，直接利用 window.open 或在 App.vue 直接 a 标签跳转，但 Electron 里 shell.openExternal 更优。
-    // 我们可以直接让主进程去打开或用 window.open。在 Electron 渲染进程中，window.open() 会被自动拦截或直接打开系统默认浏览器。
-    // 现代 Electron 中，在没有 nodeIntegration 的情况下，window.open(url) 可以直接用默认浏览器打开。
-    // 我们还可以为了确保完美，先用 window.open。
-    window.open(updateInfo.value.htmlUrl)
-  } else {
-    window.open(updateInfo.value.htmlUrl)
+async function handleDownloadUpdate() {
+  if (downloadStatus.value === 'completed') {
+    // 立即安装
+    if (window.electronAPI && typeof window.electronAPI.quitAndInstall === 'function') {
+      window.electronAPI.quitAndInstall()
+    }
+    return
   }
-  showUpdateDialog.value = false
+
+  // 开始下载
+  downloadStatus.value = 'downloading'
+  downloadPercent.value = 0
+  downloadErrorMsg.value = ''
+
+  if (window.electronAPI && typeof window.electronAPI.downloadUpdate === 'function') {
+    // 注册监听器
+    if (typeof window.electronAPI.onDownloadProgress === 'function') {
+      if (unsubscribeProgress) unsubscribeProgress()
+      unsubscribeProgress = window.electronAPI.onDownloadProgress((percent) => {
+        downloadPercent.value = percent
+      })
+    }
+    if (typeof window.electronAPI.onDownloadComplete === 'function') {
+      if (unsubscribeComplete) unsubscribeComplete()
+      unsubscribeComplete = window.electronAPI.onDownloadComplete(() => {
+        downloadStatus.value = 'completed'
+        downloadPercent.value = 100
+        ElMessage.success('更新下载成功，可点击立即安装！')
+      })
+    }
+    if (typeof window.electronAPI.onDownloadError === 'function') {
+      if (unsubscribeError) unsubscribeError()
+      unsubscribeError = window.electronAPI.onDownloadError((err) => {
+        downloadStatus.value = 'failed'
+        downloadErrorMsg.value = err
+        ElMessage.error(`下载更新失败: ${err}`)
+      })
+    }
+
+    const res = await window.electronAPI.downloadUpdate()
+    if (!res.success) {
+      downloadStatus.value = 'failed'
+      downloadErrorMsg.value = res.error || '启动下载失败'
+      ElMessage.error(`下载更新失败: ${res.error || '启动下载失败'}`)
+    }
+  } else {
+    // 降级使用浏览器下载
+    window.open(updateInfo.value.htmlUrl)
+    showUpdateDialog.value = false
+  }
 }
 
 import { onBeforeUnmount } from 'vue'
 onBeforeUnmount(() => {
   if (unsubscribeNavigate) {
     unsubscribeNavigate()
+  }
+  if (unsubscribeProgress) {
+    unsubscribeProgress()
+  }
+  if (unsubscribeComplete) {
+    unsubscribeComplete()
+  }
+  if (unsubscribeError) {
+    unsubscribeError()
   }
   if (resizeInterval) {
     clearInterval(resizeInterval)
@@ -880,8 +1022,9 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
       :title="`发现新版本 v${updateInfo.latestVersion}`"
       width="520px"
       align-center
-      :close-on-click-modal="true"
-      :close-on-press-escape="true"
+      :close-on-click-modal="downloadStatus !== 'downloading'"
+      :close-on-press-escape="downloadStatus !== 'downloading'"
+      :show-close="downloadStatus !== 'downloading'"
     >
       <div style="font-size: 14px; line-height: 1.6;">
         <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; background: var(--fluent-bg); padding: 8px 12px; border-radius: 4px;">
@@ -891,9 +1034,24 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
         </div>
         <div v-if="updateInfo.body" style="margin-top: 16px;">
           <div style="font-weight: bold; margin-bottom: 8px; color: var(--fluent-text-primary);">更新日志摘要：</div>
-          <div style="background: var(--fluent-bg); padding: 12px; border-radius: 4px; max-height: 180px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; word-break: break-all; font-size: 12px; color: var(--fluent-text-secondary); border: 1px solid var(--fluent-card-border);">
-            {{ updateInfo.body.length > 300 ? updateInfo.body.slice(0, 300) + '...' : updateInfo.body }}
+          <div class="update-log-content" style="background: var(--fluent-bg); padding: 12px; border-radius: 4px; max-height: 180px; overflow-y: auto; font-size: 12px; color: var(--fluent-text-secondary); border: 1px solid var(--fluent-card-border);" v-html="sanitizedUpdateBody">
           </div>
+        </div>
+        <div v-if="downloadStatus === 'downloading' || downloadStatus === 'completed'" style="margin-top: 20px;">
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--fluent-text-secondary); margin-bottom: 6px;">
+            <span>{{ downloadStatus === 'downloading' ? '正在下载更新包...' : '下载完成' }}</span>
+            <span>{{ downloadPercent }}%</span>
+          </div>
+          <el-progress :percentage="downloadPercent" :show-text="false" status="success" :stroke-width="8" />
+        </div>
+        <div v-if="downloadStatus === 'failed'" style="margin-top: 16px;">
+          <el-alert
+            title="下载更新失败"
+            :description="downloadErrorMsg || '未知的网络或系统错误，请检查网络连接后重试'"
+            type="error"
+            show-icon
+            :closable="false"
+          />
         </div>
         <div style="margin-top: 16px; text-align: right;">
           <el-link type="primary" :href="updateInfo.htmlUrl" target="_blank" style="font-size: 13px;">查看完整更新日志</el-link>
@@ -901,8 +1059,17 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
       </div>
       <template #footer>
         <div style="display: flex; justify-content: flex-end; gap: 12px;">
-          <el-button @click="handleIgnoreUpdate">稍后提醒</el-button>
-          <el-button type="primary" @click="handleDownloadUpdate">下载更新</el-button>
+          <el-button :disabled="downloadStatus === 'downloading'" @click="handleIgnoreUpdate">稍后提醒</el-button>
+          <el-button
+            type="primary"
+            :disabled="downloadStatus === 'downloading'"
+            @click="handleDownloadUpdate"
+          >
+            <span v-if="downloadStatus === 'idle'">下载更新</span>
+            <span v-else-if="downloadStatus === 'downloading'">下载中...</span>
+            <span v-else-if="downloadStatus === 'completed'">立即安装</span>
+            <span v-else-if="downloadStatus === 'failed'">重新下载</span>
+          </el-button>
         </div>
       </template>
     </el-dialog>
@@ -979,6 +1146,25 @@ function handleGlobalKeyDown(e: KeyboardEvent) {
   color: var(--fluent-text-primary);
   transition: background 0.3s, color 0.3s;
   overflow: hidden;
+}
+
+.update-log-content h3 {
+  margin: 8px 0 4px 0;
+  font-size: 13px;
+  color: var(--fluent-text-primary);
+}
+.update-log-content ul {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+.update-log-content li {
+  margin: 2px 0;
+}
+.update-log-content p {
+  margin: 4px 0;
+}
+.update-log-content strong {
+  color: var(--fluent-text-primary);
 }
 
 /* Let fluent-layout fill the full height of window as TitleBar is removed */

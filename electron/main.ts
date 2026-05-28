@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3'
 import Ajv from 'ajv'
+import { autoUpdater } from 'electron-updater'
 
 let mainWindow: BrowserWindow | null = null
 let db: Database.Database | null = null
@@ -885,6 +886,42 @@ ipcMain.handle('window-maximize', () => {
 
 ipcMain.handle('window-close', () => {
   mainWindow?.close()
+})
+
+// 配置 autoUpdater
+autoUpdater.autoDownload = false
+
+autoUpdater.on('download-progress', (progressObj) => {
+  const percent = Math.floor(progressObj.percent)
+  mainWindow?.webContents.send('update-download-progress', percent)
+})
+
+autoUpdater.on('update-downloaded', () => {
+  mainWindow?.webContents.send('update-download-complete')
+})
+
+autoUpdater.on('error', (err) => {
+  mainWindow?.webContents.send('update-download-error', err?.message || '下载失败')
+})
+
+ipcMain.handle('download-update', async () => {
+  try {
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'Right-Pro',
+      repo: 'OpenMind-Assessment'
+    })
+    await autoUpdater.checkForUpdates()
+    autoUpdater.downloadUpdate()
+    return { success: true }
+  } catch (err: any) {
+    console.error('Download update error:', err)
+    return { success: false, error: err?.message || '启动下载失败' }
+  }
+})
+
+ipcMain.handle('quit-and-install', () => {
+  autoUpdater.quitAndInstall()
 })
 
 // 新增 IPC 通道 'check-update'

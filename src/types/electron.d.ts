@@ -74,6 +74,11 @@ export interface ElectronAPI {
   exitKiosk: () => Promise<void>
   getScalesPath: () => Promise<string>
   checkUpdate: () => Promise<{ latestVersion?: string; releaseNotes?: string; error?: string }>
+  downloadUpdate: () => Promise<{ success: boolean; error?: string }>
+  quitAndInstall: () => Promise<void>
+  onDownloadProgress: (callback: (percent: number) => void) => () => void
+  onDownloadComplete: (callback: () => void) => () => void
+  onDownloadError: (callback: (error: string) => void) => () => void
 }
 
 declare global {
