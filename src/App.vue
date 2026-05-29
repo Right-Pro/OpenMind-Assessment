@@ -142,16 +142,15 @@ onMounted(async () => {
   }, 15000)
 })
 
-// 自动更新检测逻辑
 function isVersionGreater(v1: string, v2: string): boolean {
-  const arr1 = v1.split('.').map(Number)
-  const arr2 = v2.split('.').map(Number)
-  const len = Math.max(arr1.length, arr2.length)
-  for (let i = 0; i < len; i++) {
-    const num1 = arr1[i] !== undefined ? arr1[i] : 0
-    const num2 = arr2[i] !== undefined ? arr2[i] : 0
-    if (num1 > num2) return true
-    if (num1 < num2) return false
+  const clean = (v: string) => v.replace(/^v/, '')
+  const a = clean(v1).split('.').map(Number)
+  const b = clean(v2).split('.').map(Number)
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const numA = a[i] || 0
+    const numB = b[i] || 0
+    if (numA > numB) return true
+    if (numA < numB) return false
   }
   return false
 }

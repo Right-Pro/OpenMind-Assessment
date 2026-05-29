@@ -938,9 +938,10 @@ ipcMain.handle('check-update', async () => {
     }
 
     const request = net.request({
-      url: 'https://github.com/Right-Pro/OpenMind-Assessment/releases.atom',
+      url: 'https://api.github.com/repos/Right-Pro/OpenMind-Assessment/releases/latest',
       method: 'GET'
     })
+    request.setHeader('User-Agent', 'OpenMind-Assessment')
 
     // 设置 10 秒超时
     const timeoutTimer = setTimeout(() => {
@@ -963,64 +964,25 @@ ipcMain.handle('check-update', async () => {
       response.on('end', () => {
         clearTimeout(timeoutTimer)
         try {
-          const xmlText = dataBuffer.toString('utf8')
+          const jsonText = dataBuffer.toString('utf8')
+          const release = JSON.parse(jsonText)
           
-          // 简易的 XML 解析（不能用 DOMParser 在 Node 环境中）
-          // 解析第一个 <entry> 的内容
-          const entryMatch = xmlText.match(/<entry>([\s\S]*?)<\/entry>/)
-          if (!entryMatch) {
+          if (!release || !release.tag_name) {
             handleResponse({ error: '网络错误' })
             return
           }
-          const entryContent = entryMatch[1]
 
-          // 解析 <title>
-          const titleMatch = entryContent.match(/<title>([\s\S]*?)<\/title>/)
-          if (!titleMatch) {
-            handleResponse({ error: '网络错误' })
-            return
-          }
-          const titleText = titleMatch[1].trim()
+          // 提取版本号，确保去掉 "v" 前缀
+          const latestVersion = release.tag_name.replace(/^v/, '')
 
-          // 版本号提取正则：/v?([\d.]+)/ （兼容带 v 和不带 v 两种格式）
-          const versionMatch = titleText.match(/v?([\d.]+)/)
-          if (!versionMatch) {
-            handleResponse({ error: '网络错误' })
-            return
-          }
-          const latestVersion = versionMatch[1]
+          // 取 body 文本作为 Release Notes
+          let notesText = release.body || ''
 
-          // 取 <content> 或 <summary> 文本作为 Release Notes
-          let notesText = ''
-          const contentMatch = entryContent.match(/<content[^>]*>([\s\S]*?)<\/content>/)
-          const summaryMatch = entryContent.match(/<summary[^>]*>([\s\S]*?)<\/summary>/)
-          if (contentMatch) {
-            notesText = contentMatch[1]
-          } else if (summaryMatch) {
-            notesText = summaryMatch[1]
+          if (notesText.length > 200) {
+            notesText = notesText.slice(0, 200) + '...'
           }
 
-          // HTML 实体解码并取前 200 字
-          const decodeHtmlEntities = (str: string) => {
-            return str
-              .replace(/</g, '<')
-              .replace(/>/g, '>')
-              .replace(/&/g, '&')
-              .replace(/"/g, '"')
-              .replace(/&#39;/g, "'")
-              .replace(/'/g, "'")
-              .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1') // CDATA 标签处理
-          }
-
-          // 去除任何 XML 标签
-          let cleanText = decodeHtmlEntities(notesText)
-          cleanText = cleanText.replace(/<\/?[^>]+(>|$)/g, "").trim()
-
-          if (cleanText.length > 200) {
-            cleanText = cleanText.slice(0, 200) + '...'
-          }
-
-          handleResponse({ latestVersion, releaseNotes: cleanText })
+          handleResponse({ latestVersion, releaseNotes: notesText })
         } catch (err) {
           handleResponse({ error: '网络错误' })
         }
